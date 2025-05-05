@@ -1,0 +1,67 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Build output
+/tmp/
+/build/
+/dist/
+/bin/
+
+# Go mod vendor
+vendor/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Env and logs
+.env
+*.env.local
+*.env.development
+*.env.production
+*.log
+logs/
+
+# Go specific
+go.work
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+/pgdata/
+
+# Air live reload
+/tmp-air/
+.air.toml
+
+# Certificates
+*.pem
+*.crt
+*.key
+
+# Swagger docs generated files
+/docs/swagger/
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Temporary files
+*.tmp
+
+# User uploads (if applicable)
+/uploads/
