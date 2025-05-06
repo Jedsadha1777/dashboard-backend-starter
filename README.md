@@ -157,6 +157,35 @@ curl http://localhost:8080/api/v1/admin/dashboard \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
+## Rate Limiting Configuration
+
+To protect your API from abuse and denial-of-service attacks, the application includes configurable rate limiting. You can customize the rate limiting behavior through the following environment variables:
+
+### Rate Limiting Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | Maximum number of requests allowed per minute for rate-limited paths | 60 |
+| `RATE_LIMIT_PATHS` | Comma-separated list of API paths that should be rate-limited | `/api/v1/auth/login` |
+
+### Example Configuration
+
+```
+# Rate Limiting
+RATE_LIMIT_REQUESTS_PER_MINUTE=60
+RATE_LIMIT_PATHS=/api/v1/auth/login,/api/v1/auth/register,/api/v1/users
+```
+
+With this configuration:
+- The paths `/api/v1/auth/login`, `/api/v1/auth/register`, and `/api/v1/users` will all be rate-limited
+- Each path will allow a maximum of 60 requests per minute
+- When the limit is exceeded, the API will return a 429 Too Many Requests response
+
+### Implementation Details
+
+Rate limiting is implemented using the `golang.org/x/time/rate` package and applies on a per-instance basis. For distributed deployments, consider implementing a more sophisticated rate limiting solution using Redis or another shared cache.
+
+
 ## Seeder
 Seeder จะสร้าง Admin เริ่มต้นโดยอัตโนมัติเมื่อรัน `main.go` ถ้ายังไม่มี Admin ในฐานข้อมูล
 

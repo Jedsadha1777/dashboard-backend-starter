@@ -14,9 +14,28 @@ import (
 )
 
 var (
-	// Create a new rate limiter that allows 5 requests per minute
-	loginLimiter = rate.NewLimiter(rate.Every(time.Minute), 5)
+	// Global rate limiter that will be initialized in init()
+	loginLimiter *rate.Limiter
 )
+
+// init initializes the package-level variables
+func init() {
+	// Default to 5 requests per minute if config is not yet loaded
+	// This will be overridden when the app starts and config is loaded
+	loginLimiter = rate.NewLimiter(rate.Every(time.Minute), 5)
+}
+
+// UpdateRateLimiters updates rate limiters based on current config
+// Should be called after config is fully loaded
+func UpdateRateLimiters() {
+	requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
+	if requestsPerMinute <= 0 {
+		requestsPerMinute = 60 // Default to 60 requests per minute
+	}
+
+	// Update the global limiter
+	loginLimiter = rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
+}
 
 // AuthMiddleware checks if the request has a valid JWT token
 func AuthMiddleware() gin.HandlerFunc {
@@ -73,18 +92,22 @@ func AuthMiddleware() gin.HandlerFunc {
 
 // RateLimitMiddleware limits the number of requests from a single IP
 func RateLimitMiddleware() gin.HandlerFunc {
-	//  rate limiter จากค่า config
-	requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
-	if requestsPerMinute <= 0 {
-		requestsPerMinute = 60 // ค่าเริ่มต้น 60 ครั้งต่อนาที
-	}
-
-	limiter := rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
-
+	// Use the global rate limiter which is configured from env variables
+	// This ensures we're using the same configured limiter everywhere
 	return func(c *gin.Context) {
-		// ตรวจสอบว่าเป็น endpoint ที่ต้องการจำกัดหรือไม่
-		if c.FullPath() == "/api/v1/auth/login" {
-			if !limiter.Allow() {
+		// Check if current path should be rate-limited
+		currentPath := c.FullPath()
+		shouldLimit := false
+
+		for _, path := range config.Config.RateLimit.LimitedPaths {
+			if currentPath == path {
+				shouldLimit = true
+				break
+			}
+		}
+
+		if shouldLimit {
+			if !loginLimiter.Allow() {
 				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 					"success": false,
 					"error":   "Rate limit exceeded. Please try again later",

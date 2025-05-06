@@ -4,6 +4,7 @@ import (
 	"context"
 	"dashboard-starter/config"
 	"dashboard-starter/db"
+	"dashboard-starter/middleware"
 	"dashboard-starter/routes"
 	"dashboard-starter/utils"
 	"fmt"
@@ -31,6 +32,9 @@ func main() {
 	if err := config.Init(); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// Update rate limiters with current config
+	middleware.UpdateRateLimiters()
 
 	// Initialize JWT
 	if err := utils.InitJWT(); err != nil {

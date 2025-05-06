@@ -46,6 +46,7 @@ type JWTConfig struct {
 // RateLimitConfig สำหรับการตั้งค่าการจำกัดอัตราการเข้าถึง
 type RateLimitConfig struct {
 	RequestsPerMinute int
+	LimitedPaths      []string // Add paths that should be rate-limited
 }
 
 var Config Configuration
@@ -104,8 +105,17 @@ func Init() error {
 		log.Println("WARNING: Using empty database password. Set DB_PASSWORD for production environments")
 	}
 
+	// Parse rate limit paths from env
+	rateLimitPathsStr := getEnv("RATE_LIMIT_PATHS", "/api/v1/auth/login")
+	rateLimitPaths := strings.Split(rateLimitPathsStr, ",")
+	// Trim whitespace from each path
+	for i := range rateLimitPaths {
+		rateLimitPaths[i] = strings.TrimSpace(rateLimitPaths[i])
+	}
+
 	Config.RateLimit = RateLimitConfig{
 		RequestsPerMinute: getEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60),
+		LimitedPaths:      rateLimitPaths,
 	}
 
 	return nil
