@@ -56,7 +56,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 
 		// Parse and validate token
-		adminID, tokenVer, err := utils.ParseToken(token)
+		userID, userType, tokenVer, err := utils.ParseToken(token)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"success": false,
@@ -65,27 +65,40 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Find admin in database
-		var admin models.Admin
-		if err := db.DB.First(&admin, adminID).Error; err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"error":   "Admin account not found",
-			})
-			return
+		// Verify token version based on user type
+		if userType == "admin" {
+			var admin models.Admin
+			if err := db.DB.First(&admin, userID).Error; err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"error":   "Admin account not found",
+				})
+				return
+			}
+
+			// Verify token version matches the one in database
+			if tokenVer != admin.TokenVersion {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"error":   "Token has been revoked. Please login again",
+				})
+				return
+			}
+		} else if userType == "user" {
+			// Handle regular users if they have token versioning
+			// For now, we're assuming they don't
+		}
+		// Add more user types as needed
+
+		// Set user info in context for future handlers
+		c.Set("user_id", userID)
+		c.Set("user_type", userType)
+
+		// For backward compatibility
+		if userType == "admin" {
+			c.Set("admin_id", userID)
 		}
 
-		// Verify token version matches the one in database
-		if tokenVer != admin.TokenVersion {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"error":   "Token has been revoked. Please login again",
-			})
-			return
-		}
-
-		// Set admin ID in context for future handlers
-		c.Set("admin_id", adminID)
 		c.Next()
 	}
 }

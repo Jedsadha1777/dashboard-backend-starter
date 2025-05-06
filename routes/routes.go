@@ -45,6 +45,8 @@ func SetupRouter() *gin.Engine {
 	auth := v1.Group("/auth")
 	{
 		auth.POST("/login", controllers.Login)
+		auth.POST("/refresh", controllers.RefreshToken)
+		auth.POST("/device", controllers.DeviceAuth)
 
 		// Protected routes
 		protected := auth.Group("")
@@ -71,6 +73,15 @@ func SetupRouter() *gin.Engine {
 		})
 
 		// Additional admin routes can be added here
+		devices := admin.Group("/devices")
+		{
+			devices.POST("", controllers.CreateDevice)                    // สร้างอุปกรณ์ใหม่
+			devices.GET("", controllers.ListDevices)                      // ดูรายการอุปกรณ์
+			devices.GET("/:id", controllers.GetDevice)                    // ดูข้อมูลอุปกรณ์
+			devices.PUT("/:id", controllers.UpdateDevice)                 // อัปเดตข้อมูลอุปกรณ์
+			devices.DELETE("/:id", controllers.DeleteDevice)              // ลบอุปกรณ์
+			devices.POST("/:id/reset-key", controllers.ResetDeviceApiKey) // รีเซ็ต API key
+		}
 	}
 
 	return r
