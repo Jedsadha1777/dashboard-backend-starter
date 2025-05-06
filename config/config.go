@@ -12,9 +12,10 @@ import (
 
 // Configuration contains all app configuration
 type Configuration struct {
-	Database DatabaseConfig
-	Server   ServerConfig
-	JWT      JWTConfig
+	Database  DatabaseConfig
+	Server    ServerConfig
+	JWT       JWTConfig
+	RateLimit RateLimitConfig
 }
 
 // DatabaseConfig contains database related configuration
@@ -40,6 +41,11 @@ type ServerConfig struct {
 type JWTConfig struct {
 	Secret        string
 	ExpiryMinutes int
+}
+
+// RateLimitConfig สำหรับการตั้งค่าการจำกัดอัตราการเข้าถึง
+type RateLimitConfig struct {
+	RequestsPerMinute int
 }
 
 var Config Configuration
@@ -96,6 +102,10 @@ func Init() error {
 
 	if Config.Database.Password == "" {
 		log.Println("WARNING: Using empty database password. Set DB_PASSWORD for production environments")
+	}
+
+	Config.RateLimit = RateLimitConfig{
+		RequestsPerMinute: getEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60),
 	}
 
 	return nil

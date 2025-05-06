@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"dashboard-starter/config"
 	"dashboard-starter/db"
 	"dashboard-starter/models"
 	"dashboard-starter/utils"
@@ -72,10 +73,18 @@ func AuthMiddleware() gin.HandlerFunc {
 
 // RateLimitMiddleware limits the number of requests from a single IP
 func RateLimitMiddleware() gin.HandlerFunc {
+	//  rate limiter จากค่า config
+	requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
+	if requestsPerMinute <= 0 {
+		requestsPerMinute = 60 // ค่าเริ่มต้น 60 ครั้งต่อนาที
+	}
+
+	limiter := rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
+
 	return func(c *gin.Context) {
-		// Only apply rate limiting to login endpoint
-		if c.FullPath() == "/admin/login" {
-			if !loginLimiter.Allow() {
+		// ตรวจสอบว่าเป็น endpoint ที่ต้องการจำกัดหรือไม่
+		if c.FullPath() == "/api/v1/auth/login" {
+			if !limiter.Allow() {
 				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 					"success": false,
 					"error":   "Rate limit exceeded. Please try again later",
