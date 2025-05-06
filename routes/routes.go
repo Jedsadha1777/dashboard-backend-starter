@@ -1,30 +1,76 @@
 package routes
 
 import (
+	"dashboard-starter/config"
 	"dashboard-starter/controllers"
 	"dashboard-starter/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
+// SetupRouter configures all application routes
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	r.GET("/list", controllers.ListUsers)
-	r.POST("/insert", controllers.CreateUser)
-	r.PUT("/update/:id", controllers.UpdateUser)
-	r.DELETE("/delete/:id", controllers.DeleteUser)
+	trustedProxies := config.Config.Server.TrustedProxies
+	if len(trustedProxies) == 0 {
+		r.SetTrustedProxies(nil)
+	} else {
+		r.SetTrustedProxies(trustedProxies)
+	}
 
-	auth := r.Group("/admin")
+	// Apply global middlewares
+	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.RateLimitMiddleware())
 
-	auth.POST("/login", controllers.Login)
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
 
-	auth.Use(middleware.AuthMiddlewear())
+	// API versioning
+	v1 := r.Group("/api/v1")
+
+	// User routes
+	users := v1.Group("/users")
 	{
-		auth.GET("/dashboard", func(c *gin.Context) {
-			adminID := c.GetUint("admin_id")
-			c.JSON(200, gin.H{"message": "Welcome Admin", "id": adminID})
+		users.GET("", controllers.ListUsers)
+		users.POST("", controllers.CreateUser)
+		users.GET("/:id", controllers.GetUser)
+		users.PUT("/:id", controllers.UpdateUser)
+		users.DELETE("/:id", controllers.DeleteUser)
+	}
+
+	// Auth routes
+	auth := v1.Group("/auth")
+	{
+		auth.POST("/login", controllers.Login)
+
+		// Protected routes
+		protected := auth.Group("")
+		protected.Use(middleware.AuthMiddleware())
+		{
+			protected.POST("/logout", controllers.Logout)
+			protected.GET("/profile", controllers.GetProfile)
+		}
+	}
+
+	// Admin dashboard routes
+	admin := v1.Group("/admin")
+	admin.Use(middleware.AuthMiddleware())
+	{
+		admin.GET("/dashboard", func(c *gin.Context) {
+			adminID, _ := c.Get("admin_id")
+			c.JSON(200, gin.H{
+				"success": true,
+				"data": gin.H{
+					"message": "Welcome to Admin Dashboard",
+					"id":      adminID,
+				},
+			})
 		})
+
+		// Additional admin routes can be added here
 	}
 
 	return r
