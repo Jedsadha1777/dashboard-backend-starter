@@ -65,10 +65,10 @@ func ValidateStruct(s interface{}) error {
 	var errMessages []string
 
 	for _, e := range errs {
-		translatedErr := fmt.Sprintf("%s", e.Translate(trans))
+		translatedErr := e.Translate(trans)
 		errMessages = append(errMessages, translatedErr)
 	}
 
 	// Join error messages
-	return fmt.Errorf(strings.Join(errMessages, "; "))
+	return fmt.Errorf("%s", strings.Join(errMessages, "; "))
 }
