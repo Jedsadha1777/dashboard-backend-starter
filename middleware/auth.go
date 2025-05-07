@@ -185,7 +185,7 @@ func RateLimitMiddleware() gin.HandlerFunc {
 				requestsPerMinute = 60
 			}
 
-			limiter := getIPLimiter(ip, requestsPerMinute)
+			limiter := getIPLimiter(ip)
 
 			if !limiter.Allow() {
 				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
