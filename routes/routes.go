@@ -82,6 +82,17 @@ func SetupRouter() *gin.Engine {
 			devices.DELETE("/:id", controllers.DeleteDevice)              // ลบอุปกรณ์
 			devices.POST("/:id/reset-key", controllers.ResetDeviceApiKey) // รีเซ็ต API key
 		}
+
+		// Article management routes
+		articles := admin.Group("/articles")
+		{
+			articles.POST("", controllers.CreateArticle)
+			articles.GET("", controllers.ListArticles)
+			articles.GET("/:id", controllers.GetArticle)
+			articles.PUT("/:id", controllers.UpdateArticle)
+			articles.DELETE("/:id", controllers.DeleteArticle)
+			articles.POST("/:id/publish", controllers.PublishArticle)
+		}
 	}
 
 	return r

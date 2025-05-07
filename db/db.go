@@ -71,7 +71,13 @@ func Init() error {
 // runMigrations runs database migrations
 func runMigrations() error {
 	log.Println("Running database migrations...")
-	if err := DB.AutoMigrate(&models.User{}, &models.Admin{}, &models.RefreshToken{}, &models.Device{}); err != nil {
+	if err := DB.AutoMigrate(
+		&models.User{},
+		&models.Admin{},
+		&models.RefreshToken{},
+		&models.Device{},
+		&models.Article{}, // Add Article model migration
+	); err != nil {
 		return err
 	}
 	return nil
