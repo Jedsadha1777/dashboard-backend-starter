@@ -122,14 +122,7 @@ func Login(c *gin.Context) {
 
 // Logout handles admin logout
 func Logout(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Not authenticated",
-		})
-		return
-	}
+	adminID, _ := c.Get("admin_id")
 
 	// Find admin
 	var admin models.Admin
@@ -223,14 +216,7 @@ func RefreshToken(c *gin.Context) {
 
 // GetProfile retrieves the admin's profile
 func GetProfile(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Not authenticated",
-		})
-		return
-	}
+	adminID, _ := c.Get("admin_id")
 
 	var admin models.Admin
 	if err := db.DB.Select("id, email, created_at, updated_at, last_login").First(&admin, adminID).Error; err != nil {

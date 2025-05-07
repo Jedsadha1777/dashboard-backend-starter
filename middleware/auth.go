@@ -87,6 +87,24 @@ func AuthMiddleware() gin.HandlerFunc {
 		} else if userType == "user" {
 			// Handle regular users if they have token versioning
 			// For now, we're assuming they don't
+		} else if userType == "device" {
+			var device models.Device
+			if err := db.DB.First(&device, userID).Error; err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"error":   "Device not found",
+				})
+				return
+			}
+
+			// Verify token version matches the one in database
+			if tokenVer != device.TokenVersion {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"error":   "Token has been revoked. Please register device again",
+				})
+				return
+			}
 		}
 		// Add more user types as needed
 
@@ -99,6 +117,21 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.Set("admin_id", userID)
 		}
 
+		c.Next()
+	}
+}
+
+// AdminRequired ensures the authenticated user is an admin
+func AdminRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userType, exists := c.Get("user_type")
+		if !exists || userType != "admin" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"error":   "Unauthorized: admin authentication required",
+			})
+			return
+		}
 		c.Next()
 	}
 }

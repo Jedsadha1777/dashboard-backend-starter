@@ -13,15 +13,8 @@ import (
 
 // CreateArticle handles the request to create a new article
 func CreateArticle(c *gin.Context) {
-	// Get admin ID from context
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Unauthorized: admin authentication required",
-		})
-		return
-	}
+	// Get admin ID from context - this is now safe because of the AdminRequired middleware
+	adminID, _ := c.Get("admin_id")
 
 	var input models.ArticleInput
 
@@ -74,16 +67,6 @@ func CreateArticle(c *gin.Context) {
 
 // ListArticles handles the request to list articles with pagination and filters
 func ListArticles(c *gin.Context) {
-	// Get admin ID from context
-	_, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Unauthorized: admin authentication required",
-		})
-		return
-	}
-
 	search := c.Query("search")
 	status := c.Query("status")
 
@@ -123,16 +106,6 @@ func ListArticles(c *gin.Context) {
 
 // GetArticle handles the request to get an article by ID
 func GetArticle(c *gin.Context) {
-	// Get admin ID from context
-	_, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Unauthorized: admin authentication required",
-		})
-		return
-	}
-
 	id := c.Param("id")
 
 	article, err := services.GetArticleByID(id)
@@ -153,14 +126,7 @@ func GetArticle(c *gin.Context) {
 // UpdateArticle handles the request to update an article
 func UpdateArticle(c *gin.Context) {
 	// Get admin ID from context
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Unauthorized: admin authentication required",
-		})
-		return
-	}
+	adminID, _ := c.Get("admin_id")
 
 	id := c.Param("id")
 
@@ -207,14 +173,7 @@ func UpdateArticle(c *gin.Context) {
 // DeleteArticle handles the request to delete an article
 func DeleteArticle(c *gin.Context) {
 	// Get admin ID from context
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Unauthorized: admin authentication required",
-		})
-		return
-	}
+	adminID, _ := c.Get("admin_id")
 
 	id := c.Param("id")
 
@@ -243,14 +202,7 @@ func DeleteArticle(c *gin.Context) {
 // PublishArticle handles the request to publish an article
 func PublishArticle(c *gin.Context) {
 	// Get admin ID from context
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Unauthorized: admin authentication required",
-		})
-		return
-	}
+	adminID, _ := c.Get("admin_id")
 
 	id := c.Param("id")
 

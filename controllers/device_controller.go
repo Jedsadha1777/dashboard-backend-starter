@@ -24,15 +24,8 @@ func generateRandomAPIKey(length int) (string, error) {
 
 // CreateDevice สร้างอุปกรณ์ใหม่ในระบบ (เฉพาะ admin เท่านั้น)
 func CreateDevice(c *gin.Context) {
-	// ตรวจสอบว่าเป็น admin
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "ต้องเป็น admin เท่านั้น",
-		})
-		return
-	}
+	// ตรวจสอบว่าเป็น admin โดย AdminRequired middleware แล้ว
+	adminID, _ := c.Get("admin_id")
 
 	var input struct {
 		DeviceID string `json:"device_id" binding:"required"`
@@ -109,15 +102,7 @@ func CreateDevice(c *gin.Context) {
 
 // ListDevices แสดงรายการอุปกรณ์ทั้งหมด
 func ListDevices(c *gin.Context) {
-	// ตรวจสอบว่าเป็น admin
-	_, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "ต้องเป็น admin เท่านั้น",
-		})
-		return
-	}
+	// ตรวจสอบว่าเป็น admin โดย AdminRequired middleware แล้ว
 
 	// ดึงค่า pagination
 	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -179,15 +164,7 @@ func ListDevices(c *gin.Context) {
 
 // GetDevice ดึงข้อมูลอุปกรณ์ตาม ID
 func GetDevice(c *gin.Context) {
-	// ตรวจสอบว่าเป็น admin
-	_, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "ต้องเป็น admin เท่านั้น",
-		})
-		return
-	}
+	// ตรวจสอบว่าเป็น admin โดย AdminRequired middleware แล้ว
 
 	id := c.Param("id")
 
@@ -208,15 +185,7 @@ func GetDevice(c *gin.Context) {
 
 // UpdateDevice อัปเดตข้อมูลอุปกรณ์
 func UpdateDevice(c *gin.Context) {
-	// ตรวจสอบว่าเป็น admin
-	_, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "ต้องเป็น admin เท่านั้น",
-		})
-		return
-	}
+	// ตรวจสอบว่าเป็น admin โดย AdminRequired middleware แล้ว
 
 	id := c.Param("id")
 
@@ -263,15 +232,7 @@ func UpdateDevice(c *gin.Context) {
 
 // ResetDeviceApiKey รีเซ็ต API key ของอุปกรณ์
 func ResetDeviceApiKey(c *gin.Context) {
-	// ตรวจสอบว่าเป็น admin
-	_, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "ต้องเป็น admin เท่านั้น",
-		})
-		return
-	}
+	// ตรวจสอบว่าเป็น admin โดย AdminRequired middleware แล้ว
 
 	id := c.Param("id")
 
@@ -323,15 +284,7 @@ func ResetDeviceApiKey(c *gin.Context) {
 
 // DeleteDevice ลบอุปกรณ์ออกจากระบบ
 func DeleteDevice(c *gin.Context) {
-	// ตรวจสอบว่าเป็น admin
-	_, exists := c.Get("admin_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "ต้องเป็น admin เท่านั้น",
-		})
-		return
-	}
+	// ตรวจสอบว่าเป็น admin โดย AdminRequired middleware แล้ว
 
 	id := c.Param("id")
 

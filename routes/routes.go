@@ -58,8 +58,9 @@ func SetupRouter() *gin.Engine {
 	}
 
 	// Admin dashboard routes
+	// First use AuthMiddleware to verify token, then AdminRequired to ensure user is admin
 	admin := v1.Group("/admin")
-	admin.Use(middleware.AuthMiddleware())
+	admin.Use(middleware.AuthMiddleware(), middleware.AdminRequired())
 	{
 		admin.GET("/dashboard", func(c *gin.Context) {
 			adminID, _ := c.Get("admin_id")
@@ -72,15 +73,15 @@ func SetupRouter() *gin.Engine {
 			})
 		})
 
-		// Additional admin routes can be added here
+		// Device management
 		devices := admin.Group("/devices")
 		{
-			devices.POST("", controllers.CreateDevice)                    // สร้างอุปกรณ์ใหม่
-			devices.GET("", controllers.ListDevices)                      // ดูรายการอุปกรณ์
-			devices.GET("/:id", controllers.GetDevice)                    // ดูข้อมูลอุปกรณ์
-			devices.PUT("/:id", controllers.UpdateDevice)                 // อัปเดตข้อมูลอุปกรณ์
-			devices.DELETE("/:id", controllers.DeleteDevice)              // ลบอุปกรณ์
-			devices.POST("/:id/reset-key", controllers.ResetDeviceApiKey) // รีเซ็ต API key
+			devices.POST("", controllers.CreateDevice)
+			devices.GET("", controllers.ListDevices)
+			devices.GET("/:id", controllers.GetDevice)
+			devices.PUT("/:id", controllers.UpdateDevice)
+			devices.DELETE("/:id", controllers.DeleteDevice)
+			devices.POST("/:id/reset-key", controllers.ResetDeviceApiKey)
 		}
 
 		// Article management routes
