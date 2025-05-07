@@ -5,8 +5,10 @@ import (
 	"dashboard-starter/db"
 	"dashboard-starter/models"
 	"dashboard-starter/utils"
+	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,27 +16,53 @@ import (
 )
 
 var (
-	// Global rate limiter that will be initialized in init()
-	loginLimiter *rate.Limiter
+	// Map เก็บ rate limiters แยกตาม IP
+	ipLimiters    = make(map[string]*rate.Limiter)
+	limitersMutex sync.RWMutex
 )
 
 // init initializes the package-level variables
 func init() {
-	// Default to 5 requests per minute if config is not yet loaded
-	// This will be overridden when the app starts and config is loaded
-	loginLimiter = rate.NewLimiter(rate.Every(time.Minute), 5)
+	go cleanupIPLimiters()
 }
 
-// UpdateRateLimiters updates rate limiters based on current config
-// Should be called after config is fully loaded
-func UpdateRateLimiters() {
-	requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
-	if requestsPerMinute <= 0 {
-		requestsPerMinute = 60 // Default to 60 requests per minute
+// ฟังก์ชันล้าง map เป็นระยะเพื่อประหยัดหน่วยความจำ
+func cleanupIPLimiters() {
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		limitersMutex.Lock()
+		// สร้าง map ใหม่ ล้าง IP เก่าทั้งหมด
+		ipLimiters = make(map[string]*rate.Limiter)
+		limitersMutex.Unlock()
+
+		log.Println("IP rate limiter map has been cleaned up")
+	}
+}
+
+// ดึง limiter สำหรับ IP ที่กำหนด
+func getIPLimiter(ip string) *rate.Limiter {
+	limitersMutex.RLock()
+	limiter, exists := ipLimiters[ip]
+	limitersMutex.RUnlock()
+
+	if !exists {
+		limitersMutex.Lock()
+		// ตรวจสอบอีกครั้งเพื่อป้องกัน race condition
+		limiter, exists = ipLimiters[ip]
+		if !exists {
+			requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
+			if requestsPerMinute <= 0 {
+				requestsPerMinute = 60 // ค่าเริ่มต้น
+			}
+			limiter = rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
+			ipLimiters[ip] = limiter
+		}
+		limitersMutex.Unlock()
 	}
 
-	// Update the global limiter
-	loginLimiter = rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
+	return limiter
 }
 
 // AuthMiddleware checks if the request has a valid JWT token
@@ -138,10 +166,7 @@ func AdminRequired() gin.HandlerFunc {
 
 // RateLimitMiddleware limits the number of requests from a single IP
 func RateLimitMiddleware() gin.HandlerFunc {
-	// Use the global rate limiter which is configured from env variables
-	// This ensures we're using the same configured limiter everywhere
 	return func(c *gin.Context) {
-		// Check if current path should be rate-limited
 		currentPath := c.FullPath()
 		shouldLimit := false
 
@@ -153,7 +178,16 @@ func RateLimitMiddleware() gin.HandlerFunc {
 		}
 
 		if shouldLimit {
-			if !loginLimiter.Allow() {
+			// เปลี่ยนเป็นใช้ IP-based limiter
+			ip := c.ClientIP()
+			requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
+			if requestsPerMinute <= 0 {
+				requestsPerMinute = 60
+			}
+
+			limiter := getIPLimiter(ip, requestsPerMinute)
+
+			if !limiter.Allow() {
 				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 					"success": false,
 					"error":   "Rate limit exceeded. Please try again later",
