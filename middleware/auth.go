@@ -15,9 +15,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type IPLimiter struct {
+	limiter    *rate.Limiter
+	lastAccess time.Time
+}
+
 var (
 	// Map เก็บ rate limiters แยกตาม IP
-	ipLimiters    = make(map[string]*rate.Limiter)
+	ipLimiters    = make(map[string]*IPLimiter)
 	limitersMutex sync.RWMutex
 )
 
@@ -32,37 +37,60 @@ func cleanupIPLimiters() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		// กำหนดเวลาที่ IP ไม่ได้ใช้งาน (เช่น 1 ชั่วโมง)
+		inactiveThreshold := time.Now().Add(-1 * time.Hour)
+
 		limitersMutex.Lock()
-		// สร้าง map ใหม่ ล้าง IP เก่าทั้งหมด
-		ipLimiters = make(map[string]*rate.Limiter)
+		// ลบเฉพาะ IP ที่ไม่ได้ใช้งานในช่วงเวลาที่กำหนด
+		beforeCleanup := len(ipLimiters)
+
+		for ip, limiter := range ipLimiters {
+			if limiter.lastAccess.Before(inactiveThreshold) {
+				delete(ipLimiters, ip)
+			}
+		}
+
+		afterCleanup := len(ipLimiters)
 		limitersMutex.Unlock()
 
-		log.Println("IP rate limiter map has been cleaned up")
+		log.Printf("IP rate limiter cleanup completed: removed %d inactive limiters, %d remaining", beforeCleanup-afterCleanup, afterCleanup)
 	}
 }
 
 // ดึง limiter สำหรับ IP ที่กำหนด
-func getIPLimiter(ip string) *rate.Limiter {
+func getIPLimiter(ip string) *IPLimiter {
 	limitersMutex.RLock()
-	limiter, exists := ipLimiters[ip]
+	ipLimiter, exists := ipLimiters[ip]
 	limitersMutex.RUnlock()
 
 	if !exists {
 		limitersMutex.Lock()
 		// ตรวจสอบอีกครั้งเพื่อป้องกัน race condition
-		limiter, exists = ipLimiters[ip]
+		ipLimiter, exists = ipLimiters[ip]
 		if !exists {
 			requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
 			if requestsPerMinute <= 0 {
 				requestsPerMinute = 60 // ค่าเริ่มต้น
 			}
-			limiter = rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
-			ipLimiters[ip] = limiter
+			limiter := rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
+			ipLimiter = &IPLimiter{
+				limiter:    limiter,
+				lastAccess: time.Now(),
+			}
+			ipLimiters[ip] = ipLimiter
+		} else {
+			// อัพเดทเวลาที่เข้าถึงล่าสุด
+			ipLimiter.lastAccess = time.Now()
 		}
+		limitersMutex.Unlock()
+	} else {
+		// อัพเดทเวลาที่เข้าถึงล่าสุด (ต้องล็อค write)
+		limitersMutex.Lock()
+		ipLimiter.lastAccess = time.Now()
 		limitersMutex.Unlock()
 	}
 
-	return limiter
+	return ipLimiter
 }
 
 // AuthMiddleware checks if the request has a valid JWT token
@@ -180,14 +208,9 @@ func RateLimitMiddleware() gin.HandlerFunc {
 		if shouldLimit {
 			// เปลี่ยนเป็นใช้ IP-based limiter
 			ip := c.ClientIP()
-			requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
-			if requestsPerMinute <= 0 {
-				requestsPerMinute = 60
-			}
+			ipLimiter := getIPLimiter(ip)
 
-			limiter := getIPLimiter(ip)
-
-			if !limiter.Allow() {
+			if !ipLimiter.limiter.Allow() {
 				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 					"success": false,
 					"error":   "Rate limit exceeded. Please try again later",
