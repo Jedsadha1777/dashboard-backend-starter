@@ -3,15 +3,44 @@ package services
 import (
 	"dashboard-starter/db"
 	"dashboard-starter/models"
+	"dashboard-starter/utils"
 	"errors"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
 )
 
+type ArticleService struct {
+	repo *db.GormRepository[models.Article]
+}
+
+func NewArticleService() *ArticleService {
+	return &ArticleService{
+		repo: db.NewRepository[models.Article](),
+	}
+}
+
+func (s *ArticleService) GetByID(id string) (*models.Article, error) {
+	// ในกรณีนี้ต้องใช้ query แบบพิเศษเพื่อ preload Admin
+	var article models.Article
+	err := db.DB.Preload("Admin").First(&article, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &article, nil
+}
+
+// GetArticleBySlug retrieves an article by slug
+func (s *ArticleService) GetArticleBySlug(slug string) (*models.Article, error) {
+	var article models.Article
+	if err := db.DB.Preload("Admin").Where("slug = ?", slug).First(&article).Error; err != nil {
+		return nil, err
+	}
+	return &article, nil
+}
+
 // CreateArticle creates a new article
-func CreateArticle(input *models.ArticleInput, adminID uint) (*models.Article, error) {
+func (s *ArticleService) CreateArticle(input *models.ArticleInput, adminID uint) (*models.Article, error) {
 	// Check for duplicate slug
 	var count int64
 	if err := db.DB.Model(&models.Article{}).Where("slug = ?", input.Slug).Count(&count).Error; err != nil {
@@ -64,61 +93,33 @@ func CreateArticle(input *models.ArticleInput, adminID uint) (*models.Article, e
 }
 
 // GetArticles retrieves articles with pagination and search
-func GetArticles(search string, status string, page, limit int) ([]models.Article, int64, error) {
+func (s *ArticleService) GetArticles(params utils.PaginationParams) ([]models.Article, *utils.PaginationResult, error) {
 	var articles []models.Article
-	var count int64
 
+	// สร้าง query
 	query := db.DB.Model(&models.Article{}).Preload("Admin")
 
-	// Apply search filter if provided
-	if search != "" {
-		searchTerm := "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(slug) LIKE ?",
-			searchTerm, searchTerm, searchTerm)
+	// ใช้ search ถ้ามี
+	if params.Search != "" {
+		query = utils.ApplySearch(query, params.Search, "title", "content", "slug")
 	}
 
-	// Filter by status if provided
-	if status != "" {
-		query = query.Where("status = ?", status)
+	// กรองตาม status ถ้ามี
+	if params.Status != "" {
+		query = query.Where("status = ?", params.Status)
 	}
 
-	// Count total matching records (before pagination)
-	if err := query.Count(&count).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// Calculate offset based on page and limit
-	offset := (page - 1) * limit
-
-	// Execute query with pagination and sorting
-	err := query.Limit(limit).Offset(offset).Order("created_at DESC").Find(&articles).Error
+	// ใช้ pagination
+	result, err := utils.ApplyPagination(query, params, &articles)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
-	return articles, count, nil
-}
-
-// GetArticleByID retrieves an article by ID
-func GetArticleByID(id string) (*models.Article, error) {
-	var article models.Article
-	if err := db.DB.Preload("Admin").Where("id = ?", id).First(&article).Error; err != nil {
-		return nil, err
-	}
-	return &article, nil
-}
-
-// GetArticleBySlug retrieves an article by slug
-func GetArticleBySlug(slug string) (*models.Article, error) {
-	var article models.Article
-	if err := db.DB.Preload("Admin").Where("slug = ?", slug).First(&article).Error; err != nil {
-		return nil, err
-	}
-	return &article, nil
+	return articles, result, nil
 }
 
 // UpdateArticle updates an existing article
-func UpdateArticle(id string, input *models.ArticleInput, adminID uint) (*models.Article, error) {
+func (s *ArticleService) UpdateArticle(id string, input *models.ArticleInput, adminID uint) (*models.Article, error) {
 	// Find the article
 	var article models.Article
 	if err := db.DB.Where("id = ?", id).First(&article).Error; err != nil {
@@ -188,7 +189,7 @@ func UpdateArticle(id string, input *models.ArticleInput, adminID uint) (*models
 }
 
 // DeleteArticle deletes an article
-func DeleteArticle(id string, adminID uint) error {
+func (s *ArticleService) DeleteArticle(id string, adminID uint) error {
 	// Check if article exists and belongs to admin
 	var article models.Article
 	if err := db.DB.Where("id = ?", id).First(&article).Error; err != nil {
@@ -207,7 +208,7 @@ func DeleteArticle(id string, adminID uint) error {
 }
 
 // PublishArticle sets an article to published status
-func PublishArticle(id string, adminID uint) (*models.Article, error) {
+func (s *ArticleService) PublishArticle(id string, adminID uint) (*models.Article, error) {
 	// Find the article
 	var article models.Article
 	if err := db.DB.Where("id = ?", id).First(&article).Error; err != nil {

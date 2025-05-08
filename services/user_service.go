@@ -3,55 +3,52 @@ package services
 import (
 	"dashboard-starter/db"
 	"dashboard-starter/models"
+	"dashboard-starter/utils"
 	"errors"
-	"strings"
 
 	"gorm.io/gorm"
 )
 
-func GetUserByID(id string) (*models.User, error) {
-	var user models.User
-	if err := db.DB.Where("id = ?", id).First(&user).Error; err != nil {
-		return nil, err
+type UserService struct {
+	repo *db.GormRepository[models.User]
+}
+
+func NewUserService() *UserService {
+	return &UserService{
+		repo: db.NewRepository[models.User](),
 	}
-	return &user, nil
+}
+
+func (s *UserService) GetByID(id string) (*models.User, error) {
+	return s.repo.FindByID(id)
 }
 
 // GetUsers retrieves users with pagination and search
-func GetUsers(search string, page, limit int) ([]models.User, int64, error) {
+func (s *UserService) GetUsers(params utils.PaginationParams) ([]models.User, *utils.PaginationResult, error) {
 	var users []models.User
-	var count int64
 
+	// สร้าง query
 	query := db.DB.Model(&models.User{})
 
-	// Apply search filter if provided
-	if search != "" {
-		searchTerm := "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", searchTerm, searchTerm)
+	// ใช้ search ถ้ามี
+	if params.Search != "" {
+		query = utils.ApplySearch(query, params.Search, "name", "email")
 	}
 
-	// Count total matching records (before pagination)
-	if err := query.Count(&count).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// Calculate offset based on page and limit
-	offset := (page - 1) * limit
-
-	// Execute query with pagination and sorting
-	err := query.Limit(limit).Offset(offset).Order("created_at DESC").Find(&users).Error
+	// ใช้ pagination
+	result, err := utils.ApplyPagination(query, params, &users)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
-	return users, count, nil
+	return users, result, nil
 }
 
 // CreateUser creates a new user
-func CreateUser(input *models.UserInput) (*models.User, error) {
-	// Check for duplicate email
-	var count int64
-	if err := db.DB.Model(&models.User{}).Where("email = ?", input.Email).Count(&count).Error; err != nil {
+func (s *UserService) CreateUser(input *models.UserInput) (*models.User, error) {
+	// ตรวจสอบ email ซ้ำ
+	count, err := s.repo.Count("email = ?", input.Email)
+	if err != nil {
 		return nil, err
 	}
 
@@ -59,19 +56,14 @@ func CreateUser(input *models.UserInput) (*models.User, error) {
 		return nil, errors.New("email already exists")
 	}
 
-	// Create user inside a transaction
-	var user models.User
-	err := db.Transaction(func(tx *gorm.DB) error {
-		user = models.User{
-			Name:  input.Name,
-			Email: input.Email,
-		}
+	// สร้าง user ใหม่
+	user := models.User{
+		Name:  input.Name,
+		Email: input.Email,
+	}
 
-		if err := tx.Create(&user).Error; err != nil {
-			return err
-		}
-
-		return nil
+	err = db.Transaction(func(tx *gorm.DB) error {
+		return s.repo.Create(&user)
 	})
 
 	if err != nil {
@@ -82,7 +74,7 @@ func CreateUser(input *models.UserInput) (*models.User, error) {
 }
 
 // UpdateUser updates an existing user
-func UpdateUser(id string, input *models.UserInput) (*models.User, error) {
+func (s *UserService) UpdateUser(id string, input *models.UserInput) (*models.User, error) {
 	// Find the user
 	var user models.User
 	if err := db.DB.Where("id = ?", id).First(&user).Error; err != nil {
@@ -121,7 +113,7 @@ func UpdateUser(id string, input *models.UserInput) (*models.User, error) {
 }
 
 // DeleteUser deletes a user
-func DeleteUser(id string) error {
+func (s *UserService) DeleteUser(id string) error {
 	// Check if user exists
 	var user models.User
 	if err := db.DB.Where("id = ?", id).First(&user).Error; err != nil {

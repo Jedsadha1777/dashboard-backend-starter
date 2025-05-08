@@ -5,7 +5,6 @@ import (
 	"dashboard-starter/services"
 	"dashboard-starter/utils"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,20 +18,17 @@ type Response struct {
 
 // ListUsers handles the request to list users with pagination and search
 func ListUsers(c *gin.Context) {
-	search := c.Query("search")
-
-	// Get page and limit with defaults
-	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
-	if err != nil || page < 1 {
-		page = 1
+	// แปลง query parameters เป็น PaginationParams
+	var params utils.PaginationParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		// ใช้ค่าเริ่มต้น
+		params = utils.NewPaginationParams()
 	}
 
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	if err != nil || limit < 1 || limit > 100 {
-		limit = 10
-	}
+	// เรียกใช้ service
+	userService := services.NewUserService()
+	users, pagination, err := userService.GetUsers(params)
 
-	users, total, err := services.GetUsers(search, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
@@ -41,24 +37,16 @@ func ListUsers(c *gin.Context) {
 		return
 	}
 
-	totalPages := (total + int64(limit) - 1) / int64(limit)
-
 	c.JSON(http.StatusOK, Response{
 		Success: true,
 		Data:    users,
-		Meta: gin.H{
-			"page":       page,
-			"limit":      limit,
-			"total":      total,
-			"totalPages": totalPages,
-		},
+		Meta:    pagination,
 	})
 }
 
 // CreateUser handles the request to create a new user
 func CreateUser(c *gin.Context) {
 	var input models.UserInput
-
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
@@ -76,7 +64,10 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := services.CreateUser(&input)
+	// สร้าง service และเรียกใช้
+	userService := services.NewUserService()
+	user, err := userService.CreateUser(&input)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
@@ -95,7 +86,10 @@ func CreateUser(c *gin.Context) {
 func GetUser(c *gin.Context) {
 	id := c.Param("id")
 
-	user, err := services.GetUserByID(id)
+	// สร้าง service และเรียกใช้
+	userService := services.NewUserService()
+	user, err := userService.GetByID(id)
+
 	if err != nil {
 		c.JSON(http.StatusNotFound, Response{
 			Success: false,
@@ -132,7 +126,10 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := services.UpdateUser(id, &input)
+	// สร้าง service และเรียกใช้
+	userService := services.NewUserService()
+	user, err := userService.UpdateUser(id, &input)
+
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "record not found" {
@@ -156,7 +153,10 @@ func UpdateUser(c *gin.Context) {
 func DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 
-	err := services.DeleteUser(id)
+	// สร้าง service และเรียกใช้
+	userService := services.NewUserService()
+	err := userService.DeleteUser(id)
+
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "record not found" {

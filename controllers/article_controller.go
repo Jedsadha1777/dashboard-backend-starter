@@ -13,11 +13,10 @@ import (
 
 // CreateArticle handles the request to create a new article
 func CreateArticle(c *gin.Context) {
-	// Get admin ID from context - this is now safe because of the AdminRequired middleware
+	// Get admin ID from context
 	adminID, _ := c.Get("admin_id")
 
 	var input models.ArticleInput
-
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
@@ -50,7 +49,10 @@ func CreateArticle(c *gin.Context) {
 		input.Status = "draft"
 	}
 
-	article, err := services.CreateArticle(&input, adminID.(uint))
+	// สร้าง service และเรียกใช้
+	articleService := services.NewArticleService()
+	article, err := articleService.CreateArticle(&input, adminID.(uint))
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
@@ -81,7 +83,18 @@ func ListArticles(c *gin.Context) {
 		limit = 10
 	}
 
-	articles, total, err := services.GetArticles(search, status, page, limit)
+	// สร้าง PaginationParams
+	params := utils.PaginationParams{
+		Page:   page,
+		Limit:  limit,
+		Search: search,
+		Status: status,
+	}
+
+	// สร้าง service และเรียกใช้
+	articleService := services.NewArticleService()
+	articles, pagination, err := articleService.GetArticles(params)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
 			Success: false,
@@ -90,17 +103,10 @@ func ListArticles(c *gin.Context) {
 		return
 	}
 
-	totalPages := (total + int64(limit) - 1) / int64(limit)
-
 	c.JSON(http.StatusOK, Response{
 		Success: true,
 		Data:    articles,
-		Meta: gin.H{
-			"page":       page,
-			"limit":      limit,
-			"total":      total,
-			"totalPages": totalPages,
-		},
+		Meta:    pagination,
 	})
 }
 
@@ -108,7 +114,10 @@ func ListArticles(c *gin.Context) {
 func GetArticle(c *gin.Context) {
 	id := c.Param("id")
 
-	article, err := services.GetArticleByID(id)
+	// สร้าง service และเรียกใช้
+	articleService := services.NewArticleService()
+	article, err := articleService.GetByID(id)
+
 	if err != nil {
 		c.JSON(http.StatusNotFound, Response{
 			Success: false,
@@ -148,7 +157,10 @@ func UpdateArticle(c *gin.Context) {
 		return
 	}
 
-	article, err := services.UpdateArticle(id, &input, adminID.(uint))
+	// สร้าง service และเรียกใช้
+	articleService := services.NewArticleService()
+	article, err := articleService.UpdateArticle(id, &input, adminID.(uint))
+
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "record not found" {
@@ -177,7 +189,10 @@ func DeleteArticle(c *gin.Context) {
 
 	id := c.Param("id")
 
-	err := services.DeleteArticle(id, adminID.(uint))
+	// สร้าง service และเรียกใช้
+	articleService := services.NewArticleService()
+	err := articleService.DeleteArticle(id, adminID.(uint))
+
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "record not found" {
@@ -206,7 +221,10 @@ func PublishArticle(c *gin.Context) {
 
 	id := c.Param("id")
 
-	article, err := services.PublishArticle(id, adminID.(uint))
+	// สร้าง service และเรียกใช้
+	articleService := services.NewArticleService()
+	article, err := articleService.PublishArticle(id, adminID.(uint))
+
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "record not found" {
