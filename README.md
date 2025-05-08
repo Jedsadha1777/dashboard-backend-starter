@@ -347,3 +347,31 @@ go test ./...
 4. กำหนดค่า `TRUSTED_PROXIES` อย่างเหมาะสม
 5. ตั้งค่า Rate Limiting ให้เหมาะสมกับการใช้งาน
 6. พิจารณาใช้ Docker สำหรับการ deploy
+
+
+## การเพิ่มโมเดลใหม่สำหรับ Migration
+
+โปรเจกต์นี้ใช้ระบบลงทะเบียนโมเดลแบบรวมศูนย์สำหรับการทำ database migrations 
+
+### วิธีเพิ่มโมเดลใหม่
+
+1. สร้างไฟล์โมเดลใหม่ในโฟลเดอร์ `models/`
+2. เพิ่มโมเดลในฟังก์ชัน `RegisterAllModels()` ในไฟล์ `db/models.go`:
+
+```go
+func RegisterAllModels() {
+    modelRegistry = []interface{}{
+        &models.User{},
+        &models.Admin{},
+        &models.RefreshToken{},
+        &models.Device{},
+        &models.Article{},
+        
+        // เพิ่มโมเดลใหม่ตรงนี้:
+        &models.Product{},     // <-- โมเดลใหม่
+        &models.Category{},    // <-- โมเดลใหม่อีกตัว
+    }
+    
+    log.Printf("Registered %d models for migrations", len(modelRegistry))
+}
+```

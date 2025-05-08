@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"dashboard-starter/config"
-	"dashboard-starter/models"
 	"log"
 	"time"
 
@@ -71,15 +70,16 @@ func Init() error {
 // runMigrations runs database migrations
 func runMigrations() error {
 	log.Println("Running database migrations...")
-	if err := DB.AutoMigrate(
-		&models.User{},
-		&models.Admin{},
-		&models.RefreshToken{},
-		&models.Device{},
-		&models.Article{}, // Add Article model migration
-	); err != nil {
+
+	// ลงทะเบียนโมเดลทั้งหมด
+	RegisterAllModels()
+
+	// ทำ migration
+	if err := DB.AutoMigrate(GetAllModels()...); err != nil {
 		return err
 	}
+
+	log.Println("Database migrations completed successfully")
 	return nil
 }
 
