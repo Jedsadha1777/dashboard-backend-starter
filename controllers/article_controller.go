@@ -83,15 +83,16 @@ func ListArticles(c *gin.Context) {
 		limit = 10
 	}
 
-	// สร้าง PaginationParams
+	// สร้าง PaginationParams ด้วย Preloads
 	params := utils.PaginationParams{
-		Page:   page,
-		Limit:  limit,
-		Search: search,
-		Status: status,
+		Page:     page,
+		Limit:    limit,
+		Search:   search,
+		Status:   status,
+		Preloads: []string{"Admin"}, // เพิ่ม preload สำหรับ Admin
 	}
 
-	// สร้าง service และเรียกใช้
+	// เรียกใช้ service
 	articleService := services.NewArticleService()
 	articles, pagination, err := articleService.GetArticles(params)
 

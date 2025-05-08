@@ -5,6 +5,7 @@ import (
 	"dashboard-starter/models"
 	"dashboard-starter/utils"
 	"errors"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -21,29 +22,27 @@ func NewArticleService() *ArticleService {
 }
 
 func (s *ArticleService) GetByID(id string) (*models.Article, error) {
-	// ในกรณีนี้ต้องใช้ query แบบพิเศษเพื่อ preload Admin
-	var article models.Article
-	err := db.DB.Preload("Admin").First(&article, id).Error
+	// แปลง id เป็น uint
+	idUint, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("invalid ID format")
 	}
-	return &article, nil
+
+	// ใช้ FindWithPreload เพื่อดึงข้อมูลพร้อม Admin
+	return s.repo.FindWithPreload([]string{"Admin"}, uint(idUint))
 }
 
 // GetArticleBySlug retrieves an article by slug
 func (s *ArticleService) GetArticleBySlug(slug string) (*models.Article, error) {
-	var article models.Article
-	if err := db.DB.Preload("Admin").Where("slug = ?", slug).First(&article).Error; err != nil {
-		return nil, err
-	}
-	return &article, nil
+	// ใช้ FindOneWithPreload เพื่อค้นหาตาม slug พร้อม preload Admin
+	return s.repo.FindOneWithPreload([]string{"Admin"}, "slug = ?", slug)
 }
 
 // CreateArticle creates a new article
 func (s *ArticleService) CreateArticle(input *models.ArticleInput, adminID uint) (*models.Article, error) {
-	// Check for duplicate slug
-	var count int64
-	if err := db.DB.Model(&models.Article{}).Where("slug = ?", input.Slug).Count(&count).Error; err != nil {
+	// ตรวจสอบ slug ซ้ำ
+	count, err := s.repo.Count("slug = ?", input.Slug)
+	if err != nil {
 		return nil, err
 	}
 
@@ -51,7 +50,7 @@ func (s *ArticleService) CreateArticle(input *models.ArticleInput, adminID uint)
 		return nil, errors.New("slug already exists")
 	}
 
-	// Parse published date if provided
+	// แปลงวันที่ published
 	var publishedAt *time.Time
 	if input.PublishedAt != "" && input.Status == "published" {
 		parsedTime, err := time.Parse(time.RFC3339, input.PublishedAt)
@@ -60,44 +59,43 @@ func (s *ArticleService) CreateArticle(input *models.ArticleInput, adminID uint)
 		}
 		publishedAt = &parsedTime
 	} else if input.Status == "published" {
-		// If status is published but no date provided, use current time
 		now := time.Now()
 		publishedAt = &now
 	}
 
-	// Create article inside a transaction
-	var article models.Article
-	err := db.Transaction(func(tx *gorm.DB) error {
-		article = models.Article{
-			Title:       input.Title,
-			Content:     input.Content,
-			Slug:        input.Slug,
-			Summary:     input.Summary,
-			Status:      input.Status,
-			PublishedAt: publishedAt,
-			AdminID:     adminID,
-		}
+	// สร้าง article
+	article := &models.Article{
+		Title:       input.Title,
+		Content:     input.Content,
+		Slug:        input.Slug,
+		Summary:     input.Summary,
+		Status:      input.Status,
+		PublishedAt: publishedAt,
+		AdminID:     adminID,
+	}
 
-		if err := tx.Create(&article).Error; err != nil {
-			return err
-		}
-
-		return nil
+	// สร้าง article ในฐานข้อมูล
+	err = db.Transaction(func(tx *gorm.DB) error {
+		return s.repo.Create(article)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &article, nil
+	// ดึงข้อมูลที่สมบูรณ์พร้อม Admin
+	return s.repo.FindWithPreload([]string{"Admin"}, article.ID)
 }
 
 // GetArticles retrieves articles with pagination and search
 func (s *ArticleService) GetArticles(params utils.PaginationParams) ([]models.Article, *utils.PaginationResult, error) {
 	var articles []models.Article
 
+	// เพิ่ม preload Admin
+	params.Preloads = []string{"Admin"}
+
 	// สร้าง query
-	query := db.DB.Model(&models.Article{}).Preload("Admin")
+	query := db.DB.Model(&models.Article{})
 
 	// ใช้ search ถ้ามี
 	if params.Search != "" {
@@ -120,21 +118,27 @@ func (s *ArticleService) GetArticles(params utils.PaginationParams) ([]models.Ar
 
 // UpdateArticle updates an existing article
 func (s *ArticleService) UpdateArticle(id string, input *models.ArticleInput, adminID uint) (*models.Article, error) {
-	// Find the article
-	var article models.Article
-	if err := db.DB.Where("id = ?", id).First(&article).Error; err != nil {
+	// แปลง id เป็น uint
+	idUint, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return nil, errors.New("invalid ID format")
+	}
+
+	// ค้นหา article
+	article, err := s.repo.FindByID(uint(idUint))
+	if err != nil {
 		return nil, err
 	}
 
-	// Check if admin owns this article
+	// ตรวจสอบว่า admin เป็นเจ้าของบทความนี้
 	if article.AdminID != adminID {
 		return nil, errors.New("you don't have permission to update this article")
 	}
 
-	// Check for duplicate slug if changing
+	// ตรวจสอบ slug ซ้ำถ้ามีการเปลี่ยนแปลง
 	if input.Slug != article.Slug {
-		var count int64
-		if err := db.DB.Model(&models.Article{}).Where("slug = ? AND id != ?", input.Slug, id).Count(&count).Error; err != nil {
+		count, err := s.repo.Count("slug = ? AND id != ?", input.Slug, article.ID)
+		if err != nil {
 			return nil, err
 		}
 
@@ -143,7 +147,7 @@ func (s *ArticleService) UpdateArticle(id string, input *models.ArticleInput, ad
 		}
 	}
 
-	// Parse published date if provided
+	// แปลงวันที่เผยแพร่ถ้ามีการระบุ
 	var publishedAt *time.Time
 	if input.PublishedAt != "" && input.Status == "published" {
 		parsedTime, err := time.Parse(time.RFC3339, input.PublishedAt)
@@ -152,90 +156,93 @@ func (s *ArticleService) UpdateArticle(id string, input *models.ArticleInput, ad
 		}
 		publishedAt = &parsedTime
 	} else if input.Status == "published" && (article.PublishedAt == nil || article.Status != "published") {
-		// If status is being changed to published but no date provided, use current time
+		// ถ้าสถานะเปลี่ยนเป็น published แต่ไม่ได้ระบุวันที่ ให้ใช้เวลาปัจจุบัน
 		now := time.Now()
 		publishedAt = &now
 	} else {
-		// Keep the existing published date
+		// คงวันที่เผยแพร่เดิม
 		publishedAt = article.PublishedAt
 	}
 
-	// Update article inside a transaction
-	err := db.Transaction(func(tx *gorm.DB) error {
-		article.Title = input.Title
-		article.Content = input.Content
-		article.Slug = input.Slug
-		article.Summary = input.Summary
-		article.Status = input.Status
-		article.PublishedAt = publishedAt
+	// อัปเดตข้อมูลบทความ
+	article.Title = input.Title
+	article.Content = input.Content
+	article.Slug = input.Slug
+	article.Summary = input.Summary
+	article.Status = input.Status
+	article.PublishedAt = publishedAt
 
-		if err := tx.Save(&article).Error; err != nil {
-			return err
-		}
-
-		return nil
+	// อัปเดตด้วย transaction
+	err = db.Transaction(func(tx *gorm.DB) error {
+		return s.repo.Update(article)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Reload article with admin data
-	if err := db.DB.Preload("Admin").Where("id = ?", id).First(&article).Error; err != nil {
-		return nil, err
-	}
-
-	return &article, nil
+	// ดึงข้อมูลที่อัปเดตแล้วพร้อม Admin
+	return s.repo.FindWithPreload([]string{"Admin"}, article.ID)
 }
 
 // DeleteArticle deletes an article
 func (s *ArticleService) DeleteArticle(id string, adminID uint) error {
-	// Check if article exists and belongs to admin
-	var article models.Article
-	if err := db.DB.Where("id = ?", id).First(&article).Error; err != nil {
+	// แปลง id เป็น uint
+	idUint, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return errors.New("invalid ID format")
+	}
+
+	// ค้นหาบทความ
+	article, err := s.repo.FindByID(uint(idUint))
+	if err != nil {
 		return err
 	}
 
-	// Check if admin owns this article
+	// ตรวจสอบว่า admin เป็นเจ้าของบทความนี้
 	if article.AdminID != adminID {
 		return errors.New("you don't have permission to delete this article")
 	}
 
-	// Delete article inside a transaction
+	// ลบบทความด้วย transaction
 	return db.Transaction(func(tx *gorm.DB) error {
-		return tx.Delete(&article).Error
+		return s.repo.Delete(article.ID)
 	})
 }
 
 // PublishArticle sets an article to published status
 func (s *ArticleService) PublishArticle(id string, adminID uint) (*models.Article, error) {
-	// Find the article
-	var article models.Article
-	if err := db.DB.Where("id = ?", id).First(&article).Error; err != nil {
+	// แปลง id เป็น uint
+	idUint, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return nil, errors.New("invalid ID format")
+	}
+
+	// ค้นหาบทความ
+	article, err := s.repo.FindByID(uint(idUint))
+	if err != nil {
 		return nil, err
 	}
 
-	// Check if admin owns this article
+	// ตรวจสอบว่า admin เป็นเจ้าของบทความนี้
 	if article.AdminID != adminID {
 		return nil, errors.New("you don't have permission to publish this article")
 	}
 
-	// Update article status inside a transaction
-	err := db.Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-		article.Status = "published"
-		article.PublishedAt = &now
+	// อัปเดตสถานะบทความเป็น published
+	now := time.Now()
+	article.Status = "published"
+	article.PublishedAt = &now
 
-		if err := tx.Save(&article).Error; err != nil {
-			return err
-		}
-
-		return nil
+	// บันทึกการเปลี่ยนแปลงด้วย transaction
+	err = db.Transaction(func(tx *gorm.DB) error {
+		return s.repo.Update(article)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &article, nil
+	// ดึงข้อมูลที่อัปเดตแล้วพร้อม Admin
+	return s.repo.FindWithPreload([]string{"Admin"}, article.ID)
 }

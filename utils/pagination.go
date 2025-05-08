@@ -9,11 +9,12 @@ import (
 
 // PaginationParams พารามิเตอร์สำหรับ pagination
 type PaginationParams struct {
-	Page    int    `json:"page" form:"page"`
-	Limit   int    `json:"limit" form:"limit"`
-	OrderBy string `json:"order_by" form:"order_by"`
-	Search  string `json:"search" form:"search"`
-	Status  string `json:"status" form:"status"`
+	Page     int      `json:"page" form:"page"`
+	Limit    int      `json:"limit" form:"limit"`
+	OrderBy  string   `json:"order_by" form:"order_by"`
+	Search   string   `json:"search" form:"search"`
+	Status   string   `json:"status" form:"status"`
+	Preloads []string `json:"-" form:"-"`
 }
 
 // PaginationResult ผลลัพธ์ของ pagination
@@ -27,9 +28,10 @@ type PaginationResult struct {
 // NewPaginationParams สร้าง pagination params ใหม่ด้วยค่าเริ่มต้น
 func NewPaginationParams() PaginationParams {
 	return PaginationParams{
-		Page:    1,
-		Limit:   10,
-		OrderBy: "created_at desc",
+		Page:     1,
+		Limit:    10,
+		OrderBy:  "created_at desc",
+		Preloads: []string{},
 	}
 }
 
@@ -59,22 +61,25 @@ func ApplyPagination[T any](
 ) (*PaginationResult, error) {
 	params.Normalize()
 
-	// Clone the query to count total records
+	// ใช้ preload ถ้ามี
+	query := db
+	for _, preload := range params.Preloads {
+		query = query.Preload(preload)
+	}
+
+	// คำนวณจำนวนรายการทั้งหมด
 	var count int64
-	countQuery := db
-	if err := countQuery.Count(&count).Error; err != nil {
+	if err := query.Count(&count).Error; err != nil {
 		return nil, err
 	}
 
-	// Calculate total pages
+	// คำนวณจำนวนหน้าทั้งหมด
 	totalPages := (count + int64(params.Limit) - 1) / int64(params.Limit)
 
-	// Apply pagination and get results
-	err := db.Limit(params.Limit).Offset(params.GetOffset()).
+	// ใช้ pagination และการจัดเรียง
+	if err := query.Limit(params.Limit).Offset(params.GetOffset()).
 		Order(params.OrderBy).
-		Find(result).Error
-
-	if err != nil {
+		Find(result).Error; err != nil {
 		return nil, err
 	}
 
