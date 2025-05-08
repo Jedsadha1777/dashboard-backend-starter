@@ -4,6 +4,7 @@ import (
 	"dashboard-starter/config"
 	"dashboard-starter/controllers"
 	"dashboard-starter/middleware"
+	"log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,11 +13,14 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
+	// ตั้งค่า trusted proxies
 	trustedProxies := config.Config.Server.TrustedProxies
 	if len(trustedProxies) == 0 {
 		r.SetTrustedProxies(nil)
+		log.Println("Warning: Not using trusted proxies. All requests will be trusted.")
 	} else {
 		r.SetTrustedProxies(trustedProxies)
+		log.Println("Using trusted proxies:", trustedProxies)
 	}
 
 	// Apply global middlewares
@@ -94,8 +98,19 @@ func SetupRouter() *gin.Engine {
 			articles.DELETE("/:id", controllers.DeleteArticle)
 			articles.POST("/:id/publish", controllers.PublishArticle)
 		}
-
 	}
 
+	// ใช้เพื่อการ debug ให้แสดง registerd routes ทั้งหมด
+	debugRoutes(r)
+
 	return r
+}
+
+// debugRoutes แสดง registered routes ทั้งหมดเพื่อช่วยในการ debug
+func debugRoutes(r *gin.Engine) {
+	routes := r.Routes()
+	log.Println("Registered routes:")
+	for _, route := range routes {
+		log.Printf("[%s] %s", route.Method, route.Path)
+	}
 }

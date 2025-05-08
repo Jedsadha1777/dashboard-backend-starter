@@ -161,6 +161,13 @@ func AuthMiddleware() gin.HandlerFunc {
 				})
 				return
 			}
+		} else {
+			// ถ้าไม่รู้จัก user type ให้ reject request
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"error":   "Unknown user type",
+			})
+			return
 		}
 		// Add more user types as needed
 
