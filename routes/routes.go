@@ -31,16 +31,6 @@ func SetupRouter() *gin.Engine {
 	// API versioning
 	v1 := r.Group("/api/v1")
 
-	// User routes
-	users := v1.Group("/users")
-	{
-		users.GET("", controllers.ListUsers)
-		users.POST("", controllers.CreateUser)
-		users.GET("/:id", controllers.GetUser)
-		users.PUT("/:id", controllers.UpdateUser)
-		users.DELETE("/:id", controllers.DeleteUser)
-	}
-
 	// Auth routes
 	auth := v1.Group("/auth")
 	{
@@ -73,6 +63,16 @@ func SetupRouter() *gin.Engine {
 			})
 		})
 
+		// user management routes
+		users := admin.Group("/users")
+		{
+			users.GET("", controllers.ListUsers)
+			users.POST("", controllers.CreateUser)
+			users.GET("/:id", controllers.GetUser)
+			users.PUT("/:id", controllers.UpdateUser)
+			users.DELETE("/:id", controllers.DeleteUser)
+		}
+
 		// Device management
 		devices := admin.Group("/devices")
 		{
@@ -94,6 +94,7 @@ func SetupRouter() *gin.Engine {
 			articles.DELETE("/:id", controllers.DeleteArticle)
 			articles.POST("/:id/publish", controllers.PublishArticle)
 		}
+
 	}
 
 	return r

@@ -18,6 +18,8 @@ func SeedAdmin() error {
 		return err
 	}
 
+	var adminID uint = 1 // Default admin ID to assign to seeded users
+
 	// If no admin exists, create one
 	if count == 0 {
 		// Generate password hash with higher cost for security
@@ -39,6 +41,8 @@ func SeedAdmin() error {
 				return err
 			}
 
+			// Store the new admin's ID for use with test users
+			adminID = admin.ID
 			return nil
 		})
 
@@ -51,20 +55,30 @@ func SeedAdmin() error {
 		log.Println("Email: admin@example.com")
 		log.Println("Password: Admin@123!")
 		log.Println("IMPORTANT: Please change this password after first login")
+	} else {
+		// If admin already exists, get the ID of the first admin
+		var admin models.Admin
+		if err := DB.First(&admin).Error; err != nil {
+			log.Printf("Failed to get existing admin ID: %v", err)
+			// Continue with default admin ID
+		} else {
+			adminID = admin.ID
+		}
 	}
 
-	return nil
+	// After creating/verifying admin, seed test users
+	return SeedTestData(adminID)
 }
 
 // SeedTestData seeds the database with test data (for development only)
-func SeedTestData() error {
-	// Create test users
+func SeedTestData(adminID uint) error {
+	// Create test users with AdminID
 	testUsers := []models.User{
-		{Name: "John Doe", Email: "john.doe@example.com"},
-		{Name: "Jane Smith", Email: "jane.smith@example.com"},
-		{Name: "Bob Johnson", Email: "bob.johnson@example.com"},
-		{Name: "Alice Williams", Email: "alice.williams@example.com"},
-		{Name: "Charlie Brown", Email: "charlie.brown@example.com"},
+		{Name: "John Doe", Email: "john.doe@example.com", AdminID: adminID},
+		{Name: "Jane Smith", Email: "jane.smith@example.com", AdminID: adminID},
+		{Name: "Bob Johnson", Email: "bob.johnson@example.com", AdminID: adminID},
+		{Name: "Alice Williams", Email: "alice.williams@example.com", AdminID: adminID},
+		{Name: "Charlie Brown", Email: "charlie.brown@example.com", AdminID: adminID},
 	}
 
 	// Check if test data already exists

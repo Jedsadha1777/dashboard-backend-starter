@@ -9,23 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type Response struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Meta    interface{} `json:"meta,omitempty"`
-}
-
 // ListUsers handles the request to list users with pagination and search
 func ListUsers(c *gin.Context) {
-	// แปลง query parameters เป็น PaginationParams
+	// Convert query parameters to PaginationParams
 	var params utils.PaginationParams
 	if err := c.ShouldBindQuery(&params); err != nil {
-		// ใช้ค่าเริ่มต้น
+		// Use default values
 		params = utils.NewPaginationParams()
 	}
 
-	// เรียกใช้ service
+	// Call service
 	userService := services.NewUserService()
 	users, pagination, err := userService.GetUsers(params)
 
@@ -46,6 +39,9 @@ func ListUsers(c *gin.Context) {
 
 // CreateUser handles the request to create a new user
 func CreateUser(c *gin.Context) {
+	// Get admin ID from context
+	adminID, _ := c.Get("admin_id")
+
 	var input models.UserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, Response{
@@ -64,9 +60,9 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// สร้าง service และเรียกใช้
+	// Create service and call
 	userService := services.NewUserService()
-	user, err := userService.CreateUser(&input)
+	user, err := userService.CreateUser(&input, adminID.(uint))
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, Response{
@@ -86,7 +82,7 @@ func CreateUser(c *gin.Context) {
 func GetUser(c *gin.Context) {
 	id := c.Param("id")
 
-	// สร้าง service และเรียกใช้
+	// Create service and call
 	userService := services.NewUserService()
 	user, err := userService.GetByID(id)
 
@@ -106,6 +102,9 @@ func GetUser(c *gin.Context) {
 
 // UpdateUser handles the request to update a user
 func UpdateUser(c *gin.Context) {
+	// Get admin ID from context
+	adminID, _ := c.Get("admin_id")
+
 	id := c.Param("id")
 
 	var input models.UserInput
@@ -126,14 +125,16 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// สร้าง service และเรียกใช้
+	// Create service and call
 	userService := services.NewUserService()
-	user, err := userService.UpdateUser(id, &input)
+	user, err := userService.UpdateUser(id, &input, adminID.(uint))
 
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "record not found" {
 			statusCode = http.StatusNotFound
+		} else if err.Error() == "you don't have permission to update this user" {
+			statusCode = http.StatusForbidden
 		}
 
 		c.JSON(statusCode, Response{
@@ -151,16 +152,21 @@ func UpdateUser(c *gin.Context) {
 
 // DeleteUser handles the request to delete a user
 func DeleteUser(c *gin.Context) {
+	// Get admin ID from context
+	adminID, _ := c.Get("admin_id")
+
 	id := c.Param("id")
 
-	// สร้าง service และเรียกใช้
+	// Create service and call
 	userService := services.NewUserService()
-	err := userService.DeleteUser(id)
+	err := userService.DeleteUser(id, adminID.(uint))
 
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "record not found" {
 			statusCode = http.StatusNotFound
+		} else if err.Error() == "you don't have permission to delete this user" {
+			statusCode = http.StatusForbidden
 		}
 
 		c.JSON(statusCode, Response{

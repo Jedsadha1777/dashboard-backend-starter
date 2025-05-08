@@ -21,7 +21,7 @@ func NewUserService() *UserService {
 }
 
 func (s *UserService) GetByID(id string) (*models.User, error) {
-	// แปลง id เป็น uint
+	// Convert id to uint
 	idUint, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
 		return nil, errors.New("invalid ID format")
@@ -34,15 +34,15 @@ func (s *UserService) GetByID(id string) (*models.User, error) {
 func (s *UserService) GetUsers(params utils.PaginationParams) ([]models.User, *utils.PaginationResult, error) {
 	var users []models.User
 
-	// สร้าง query
+	// Create query
 	query := db.DB.Model(&models.User{})
 
-	// ใช้ search ถ้ามี
+	// Apply search if provided
 	if params.Search != "" {
 		query = utils.ApplySearch(query, params.Search, "name", "email")
 	}
 
-	// ใช้ pagination
+	// Apply pagination
 	result, err := utils.ApplyPagination(query, params, &users)
 	if err != nil {
 		return nil, nil, err
@@ -52,8 +52,8 @@ func (s *UserService) GetUsers(params utils.PaginationParams) ([]models.User, *u
 }
 
 // CreateUser creates a new user
-func (s *UserService) CreateUser(input *models.UserInput) (*models.User, error) {
-	// ตรวจสอบ email ซ้ำ
+func (s *UserService) CreateUser(input *models.UserInput, adminID uint) (*models.User, error) {
+	// Check for duplicate email
 	count, err := s.repo.Count("email = ?", input.Email)
 	if err != nil {
 		return nil, err
@@ -63,13 +63,14 @@ func (s *UserService) CreateUser(input *models.UserInput) (*models.User, error) 
 		return nil, errors.New("email already exists")
 	}
 
-	// สร้าง user ใหม่
+	// Create new user
 	user := &models.User{
-		Name:  input.Name,
-		Email: input.Email,
+		Name:    input.Name,
+		Email:   input.Email,
+		AdminID: adminID, // Set the admin ID who created this user
 	}
 
-	// บันทึกลงฐานข้อมูล
+	// Save to database
 	err = db.Transaction(func(tx *gorm.DB) error {
 		return s.repo.Create(user)
 	})
@@ -82,20 +83,25 @@ func (s *UserService) CreateUser(input *models.UserInput) (*models.User, error) 
 }
 
 // UpdateUser updates an existing user
-func (s *UserService) UpdateUser(id string, input *models.UserInput) (*models.User, error) {
-	// แปลง id เป็น uint
+func (s *UserService) UpdateUser(id string, input *models.UserInput, adminID uint) (*models.User, error) {
+	// Convert id to uint
 	idUint, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
 		return nil, errors.New("invalid ID format")
 	}
 
-	// ค้นหา user
+	// Find user
 	user, err := s.repo.FindByID(uint(idUint))
 	if err != nil {
 		return nil, err
 	}
 
-	// ตรวจสอบ email ซ้ำ (ถ้ามีการเปลี่ยน email)
+	// Check if admin has permission to update this user
+	if user.AdminID != adminID {
+		return nil, errors.New("you don't have permission to update this user")
+	}
+
+	// Check for duplicate email (if changed)
 	if input.Email != user.Email {
 		count, err := s.repo.Count("email = ? AND id != ?", input.Email, user.ID)
 		if err != nil {
@@ -107,11 +113,11 @@ func (s *UserService) UpdateUser(id string, input *models.UserInput) (*models.Us
 		}
 	}
 
-	// อัปเดตข้อมูล user
+	// Update user data
 	user.Name = input.Name
 	user.Email = input.Email
 
-	// บันทึกการเปลี่ยนแปลง
+	// Save changes
 	err = db.Transaction(func(tx *gorm.DB) error {
 		return s.repo.Update(user)
 	})
@@ -124,20 +130,25 @@ func (s *UserService) UpdateUser(id string, input *models.UserInput) (*models.Us
 }
 
 // DeleteUser deletes a user
-func (s *UserService) DeleteUser(id string) error {
-	// แปลง id เป็น uint
+func (s *UserService) DeleteUser(id string, adminID uint) error {
+	// Convert id to uint
 	idUint, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
 		return errors.New("invalid ID format")
 	}
 
-	// ตรวจสอบว่า user มีอยู่จริง
-	_, err = s.repo.FindByID(uint(idUint))
+	// Check if user exists
+	user, err := s.repo.FindByID(uint(idUint))
 	if err != nil {
 		return err
 	}
 
-	// ลบ user
+	// Check if admin has permission to delete this user
+	if user.AdminID != adminID {
+		return errors.New("you don't have permission to delete this user")
+	}
+
+	// Delete user
 	return db.Transaction(func(tx *gorm.DB) error {
 		return s.repo.Delete(uint(idUint))
 	})
