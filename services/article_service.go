@@ -48,7 +48,7 @@ func (s *ArticleService) CreateArticle(input *models.ArticleInput, adminID uint)
 
 	if count > 0 {
 		// If slug already exists, generate a unique one
-		uniqueSlug, err := utils.EnsureUniqueSlug(input.Slug)
+		uniqueSlug, err := utils.EnsureUniqueSlug(db.DB, input.Slug, "articles", "slug")
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +149,7 @@ func (s *ArticleService) UpdateArticle(id string, input *models.ArticleInput, ad
 
 		if count > 0 {
 			// If slug already exists, generate a unique one
-			uniqueSlug, err := utils.EnsureUniqueSlug(input.Slug)
+			uniqueSlug, err := utils.EnsureUniqueSlug(db.DB, input.Slug, "articles", "slug", article.ID)
 			if err != nil {
 				return nil, err
 			}

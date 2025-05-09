@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,8 +37,9 @@ func SelfOrAdminRequired() gin.HandlerFunc {
 
 		// Allow if user is accessing their own resource
 		if userExists && userType == "user" && requestedID != "" {
-			// Convert to string for comparison
-			if userID.(uint) == gin.H{"id": requestedID}["id"] {
+			// แปลง requestedID จาก string เป็น uint เพื่อเปรียบเทียบกับ userID
+			requestedIDUint, err := strconv.ParseUint(requestedID, 10, 32)
+			if err == nil && userID.(uint) == uint(requestedIDUint) {
 				c.Next()
 				return
 			}
