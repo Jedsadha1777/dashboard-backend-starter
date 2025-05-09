@@ -32,6 +32,11 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
+	// Initialize validation
+	if err := utils.InitValidator(); err != nil {
+		log.Fatalf("Failed to initialize validator: %v", err)
+	}
+
 	// Initialize JWT
 	if err := utils.InitJWT(); err != nil {
 		log.Fatalf("Failed to initialize JWT: %v", err)

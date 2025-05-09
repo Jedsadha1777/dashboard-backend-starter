@@ -164,6 +164,7 @@ Updates an existing article.
   "status": "published",
   "published_at": "2025-05-08T15:30:00Z"
 }
+```
 
 **Response (200 OK)**:
 

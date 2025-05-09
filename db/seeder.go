@@ -2,6 +2,7 @@ package db
 
 import (
 	"dashboard-starter/models"
+	"dashboard-starter/utils"
 	"time"
 
 	"log"
@@ -22,8 +23,14 @@ func SeedAdmin() error {
 
 	// If no admin exists, create one
 	if count == 0 {
+		// Generate a strong random password for development use
+		initialPassword := utils.GenerateRandomPassword(16)
+
+		// Log initial password for development environment only
+		log.Println("Generating strong initial password for admin")
+
 		// Generate password hash with higher cost for security
-		hashed, err := bcrypt.GenerateFromPassword([]byte("Admin@123!"), bcrypt.DefaultCost+1)
+		hashed, err := bcrypt.GenerateFromPassword([]byte(initialPassword), bcrypt.DefaultCost+2)
 		if err != nil {
 			return err
 		}
@@ -53,8 +60,9 @@ func SeedAdmin() error {
 
 		log.Println("Successfully created default admin account")
 		log.Println("Email: admin@example.com")
-		log.Println("Password: Admin@123!")
-		log.Println("IMPORTANT: Please change this password after first login")
+		log.Println("Password: " + initialPassword)
+		log.Println("WARNING: This is a development credential. DO NOT use in production.")
+		log.Println("IMPORTANT: Please change this password immediately after first login")
 	} else {
 		// If admin already exists, get the ID of the first admin
 		var admin models.Admin
@@ -97,15 +105,18 @@ func SeedTestData(adminID uint) error {
 	if count == 0 {
 		log.Println("Seeding admin-created test users...")
 
-		// Generate default password
-		defaultPassword, err := bcrypt.GenerateFromPassword([]byte("User@123!"), bcrypt.DefaultCost)
-		if err != nil {
-			return err
-		}
-
 		// Use transaction for data consistency
-		err = Transaction(func(tx *gorm.DB) error {
+		err := Transaction(func(tx *gorm.DB) error {
 			for _, user := range testUsers {
+				// Generate a strong, unique password for each test user
+				userPassword := utils.GenerateRandomPassword(16)
+
+				// Hash password with stronger security
+				defaultPassword, err := bcrypt.GenerateFromPassword([]byte(userPassword), bcrypt.DefaultCost+1)
+				if err != nil {
+					return err
+				}
+
 				// Set password and token version
 				user.Password = string(defaultPassword)
 				user.TokenVersion = 1
@@ -114,6 +125,8 @@ func SeedTestData(adminID uint) error {
 				if err := tx.Create(&user).Error; err != nil {
 					return err
 				}
+
+				log.Printf("Created test user: %s with password: %s", user.Email, userPassword)
 			}
 			return nil
 		})
@@ -124,7 +137,7 @@ func SeedTestData(adminID uint) error {
 		}
 
 		log.Println("Successfully seeded admin-created test users")
-		log.Println("Default password for all admin-created test users: User@123!")
+		log.Println("WARNING: These are development accounts. DO NOT use in production.")
 	}
 
 	return nil
@@ -149,15 +162,18 @@ func SeedTestUsers() error {
 	if count == 0 {
 		log.Println("Seeding self-registered test users...")
 
-		// Generate default password
-		defaultPassword, err := bcrypt.GenerateFromPassword([]byte("SelfUser@123!"), bcrypt.DefaultCost)
-		if err != nil {
-			return err
-		}
-
 		// Use transaction for data consistency
-		err = Transaction(func(tx *gorm.DB) error {
+		err := Transaction(func(tx *gorm.DB) error {
 			for _, user := range selfRegisteredUsers {
+				// Generate unique strong password for each user
+				userPassword := utils.GenerateRandomPassword(16)
+
+				// Use stronger password hashing
+				defaultPassword, err := bcrypt.GenerateFromPassword([]byte(userPassword), bcrypt.DefaultCost+1)
+				if err != nil {
+					return err
+				}
+
 				// Set password and token version
 				user.Password = string(defaultPassword)
 				user.TokenVersion = 1
@@ -167,6 +183,8 @@ func SeedTestUsers() error {
 				if err := tx.Create(&user).Error; err != nil {
 					return err
 				}
+
+				log.Printf("Created self-registered test user: %s with password: %s", user.Email, userPassword)
 			}
 			return nil
 		})
@@ -177,7 +195,7 @@ func SeedTestUsers() error {
 		}
 
 		log.Println("Successfully seeded self-registered test users")
-		log.Println("Default password for all self-registered test users: SelfUser@123!")
+		log.Println("WARNING: These are development accounts. DO NOT use in production.")
 	}
 
 	return nil

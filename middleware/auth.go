@@ -23,7 +23,7 @@ type IPLimiter struct {
 var (
 	// Map เก็บ rate limiters แยกตาม IP
 	ipLimiters    = make(map[string]*IPLimiter)
-	limitersMutex sync.RWMutex
+	limitersMutex sync.Mutex // ใช้ Mutex แทน RWMutex เพื่อป้องกัน race condition
 )
 
 // init initializes the package-level variables
@@ -64,48 +64,15 @@ func cleanupIPLimiters() {
 }
 
 func getIPLimiter(ip string) *IPLimiter {
-	// First, check with read lock
-	limitersMutex.RLock()
-	ipLimiter, exists := ipLimiters[ip]
-	limitersMutex.RUnlock()
-
-	if !exists {
-		// If not found, get write lock to create
-		limitersMutex.Lock()
-		defer limitersMutex.Unlock()
-
-		// Check again after getting the lock (double-checked locking pattern)
-		ipLimiter, exists = ipLimiters[ip]
-		if !exists {
-			// Create new rate limiter
-			requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
-			if requestsPerMinute <= 0 {
-				requestsPerMinute = 60 // Default value
-			}
-			limiter := rate.NewLimiter(rate.Limit(requestsPerMinute)/60, requestsPerMinute)
-			ipLimiter = &IPLimiter{
-				limiter:    limiter,
-				lastAccess: time.Now(),
-			}
-			ipLimiters[ip] = ipLimiter
-			return ipLimiter
-		}
-		// Found after getting lock
-		ipLimiter.lastAccess = time.Now()
-		return ipLimiter
-	}
-
-	// Update last access time with proper locking
 	limitersMutex.Lock()
 	defer limitersMutex.Unlock()
 
-	// Get the current limiter again under the write lock
-	ipLimiter, exists = ipLimiters[ip]
+	ipLimiter, exists := ipLimiters[ip]
 	if !exists {
-		// This should never happen, but handle it gracefully
+		// Create new rate limiter
 		requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
 		if requestsPerMinute <= 0 {
-			requestsPerMinute = 60
+			requestsPerMinute = 60 // Default value
 		}
 		limiter := rate.NewLimiter(rate.Limit(requestsPerMinute)/60, requestsPerMinute)
 		ipLimiter = &IPLimiter{
@@ -168,8 +135,23 @@ func AuthMiddleware() gin.HandlerFunc {
 				return
 			}
 		} else if userType == "user" {
-			// Handle regular users if they have token versioning
-			// For now, we're assuming they don't
+			var user models.User
+			if err := db.DB.First(&user, userID).Error; err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"error":   "User account not found",
+				})
+				return
+			}
+
+			// Verify token version matches the one in database
+			if tokenVer != user.TokenVersion {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"error":   "Token has been revoked. Please login again",
+				})
+				return
+			}
 		} else if userType == "device" {
 			var device models.Device
 			if err := db.DB.First(&device, userID).Error; err != nil {
@@ -196,7 +178,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			})
 			return
 		}
-		// Add more user types as needed
 
 		// Set user info in context for future handlers
 		c.Set("user_id", userID)
