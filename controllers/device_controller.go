@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ฟังก์ชันช่วยสร้าง API key แบบสุ่ม
+// Helper function to generate random API key
 func generateRandomAPIKey(length int) (string, error) {
 	bytes := make([]byte, length/2)
 	if _, err := rand.Read(bytes); err != nil {
@@ -22,9 +22,9 @@ func generateRandomAPIKey(length int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-// CreateDevice สร้างอุปกรณ์ใหม่ในระบบ (เฉพาะ admin เท่านั้น)
+// CreateDevice creates a new device in the system (admin only)
 func CreateDevice(c *gin.Context) {
-	// ตรวจสอบว่าเป็น admin โดย AdminRequired middleware แล้ว
+	// Admin check is handled by AdminRequired middleware
 	adminID, _ := c.Get("admin_id")
 
 	var input struct {

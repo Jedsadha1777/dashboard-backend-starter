@@ -17,7 +17,7 @@ var (
 )
 
 // InitValidator initializes the validator
-func InitValidator() {
+func InitValidator() error {
 	// Create new validator
 	validate = validator.New()
 
@@ -33,18 +33,31 @@ func InitValidator() {
 	// Create translator
 	english := en.New()
 	uni := ut.New(english, english)
-	trans, _ = uni.GetTranslator("en")
+	var ok bool
+	trans, ok = uni.GetTranslator("en")
+	if !ok {
+		return fmt.Errorf("failed to get english translator")
+	}
 
 	// Register default english translations
-	_ = en_translations.RegisterDefaultTranslations(validate, trans)
+	if err := en_translations.RegisterDefaultTranslations(validate, trans); err != nil {
+		return fmt.Errorf("failed to register default translations: %w", err)
+	}
 
-	// Register custom translations if needed
-	_ = validate.RegisterTranslation("required", trans, func(ut ut.Translator) error {
+	// Register custom translations
+	if err := validate.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is required", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("required", fe.Field())
+		t, err := ut.T("required", fe.Field())
+		if err != nil {
+			return fe.Field() + " is required" // Fallback
+		}
 		return t
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to register custom translation: %w", err)
+	}
+
+	return nil
 }
 
 // ValidateStruct validates a struct and returns error message

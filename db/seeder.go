@@ -66,13 +66,19 @@ func SeedAdmin() error {
 		}
 	}
 
-	// After creating/verifying admin, seed test users
-	return SeedTestData(adminID)
+	// After creating/verifying admin, seed test data
+	err := SeedTestData(adminID)
+	if err != nil {
+		return err
+	}
+
+	// Seed test regular users (self-registered)
+	return SeedTestUsers()
 }
 
 // SeedTestData seeds the database with test data (for development only)
 func SeedTestData(adminID uint) error {
-	// Create test users with AdminID
+	// Create test users with AdminID (admin-created users)
 	testUsers := []models.User{
 		{Name: "John Doe", Email: "john.doe@example.com", AdminID: adminID},
 		{Name: "Jane Smith", Email: "jane.smith@example.com", AdminID: adminID},
@@ -83,17 +89,28 @@ func SeedTestData(adminID uint) error {
 
 	// Check if test data already exists
 	var count int64
-	if err := DB.Model(&models.User{}).Count(&count).Error; err != nil {
+	if err := DB.Model(&models.User{}).Where("admin_id = ?", adminID).Count(&count).Error; err != nil {
 		return err
 	}
 
-	// Only seed if no users exist
+	// Only seed if no admin-created users exist
 	if count == 0 {
-		log.Println("Seeding test data...")
+		log.Println("Seeding admin-created test users...")
+
+		// Generate default password
+		defaultPassword, err := bcrypt.GenerateFromPassword([]byte("User@123!"), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
 
 		// Use transaction for data consistency
-		err := Transaction(func(tx *gorm.DB) error {
+		err = Transaction(func(tx *gorm.DB) error {
 			for _, user := range testUsers {
+				// Set password and token version
+				user.Password = string(defaultPassword)
+				user.TokenVersion = 1
+				user.LastLogin = time.Now()
+
 				if err := tx.Create(&user).Error; err != nil {
 					return err
 				}
@@ -102,11 +119,65 @@ func SeedTestData(adminID uint) error {
 		})
 
 		if err != nil {
-			log.Printf("Failed to seed test data: %v", err)
+			log.Printf("Failed to seed admin-created test users: %v", err)
 			return err
 		}
 
-		log.Println("Successfully seeded test data")
+		log.Println("Successfully seeded admin-created test users")
+		log.Println("Default password for all admin-created test users: User@123!")
+	}
+
+	return nil
+}
+
+// SeedTestUsers creates self-registered test users
+func SeedTestUsers() error {
+	// Create self-registered users (no AdminID)
+	selfRegisteredUsers := []models.User{
+		{Name: "Sam Wilson", Email: "sam.wilson@example.com"},
+		{Name: "Maria Rodriguez", Email: "maria.rodriguez@example.com"},
+		{Name: "David Kim", Email: "david.kim@example.com"},
+	}
+
+	// Check if self-registered test users already exist
+	var count int64
+	if err := DB.Model(&models.User{}).Where("admin_id = ? OR admin_id IS NULL", 0).Count(&count).Error; err != nil {
+		return err
+	}
+
+	// Only seed if no self-registered users exist
+	if count == 0 {
+		log.Println("Seeding self-registered test users...")
+
+		// Generate default password
+		defaultPassword, err := bcrypt.GenerateFromPassword([]byte("SelfUser@123!"), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+
+		// Use transaction for data consistency
+		err = Transaction(func(tx *gorm.DB) error {
+			for _, user := range selfRegisteredUsers {
+				// Set password and token version
+				user.Password = string(defaultPassword)
+				user.TokenVersion = 1
+				user.LastLogin = time.Now()
+				user.AdminID = 0 // Explicitly set to 0 to indicate self-registration
+
+				if err := tx.Create(&user).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			log.Printf("Failed to seed self-registered test users: %v", err)
+			return err
+		}
+
+		log.Println("Successfully seeded self-registered test users")
+		log.Println("Default password for all self-registered test users: SelfUser@123!")
 	}
 
 	return nil

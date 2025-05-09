@@ -47,7 +47,12 @@ func (s *ArticleService) CreateArticle(input *models.ArticleInput, adminID uint)
 	}
 
 	if count > 0 {
-		return nil, errors.New("slug already exists")
+		// If slug already exists, generate a unique one
+		uniqueSlug, err := utils.EnsureUniqueSlug(input.Slug)
+		if err != nil {
+			return nil, err
+		}
+		input.Slug = uniqueSlug
 	}
 
 	// แปลงวันที่ published
@@ -143,7 +148,12 @@ func (s *ArticleService) UpdateArticle(id string, input *models.ArticleInput, ad
 		}
 
 		if count > 0 {
-			return nil, errors.New("slug already exists")
+			// If slug already exists, generate a unique one
+			uniqueSlug, err := utils.EnsureUniqueSlug(input.Slug)
+			if err != nil {
+				return nil, err
+			}
+			input.Slug = uniqueSlug
 		}
 	}
 

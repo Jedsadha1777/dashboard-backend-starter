@@ -37,57 +37,84 @@ func cleanupIPLimiters() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		// กำหนดเวลาที่ IP ไม่ได้ใช้งาน (เช่น 1 ชั่วโมง)
-		inactiveThreshold := time.Now().Add(-1 * time.Hour)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Error during IP limiter cleanup: %v", r)
+				}
+			}()
 
-		limitersMutex.Lock()
-		// ลบเฉพาะ IP ที่ไม่ได้ใช้งานในช่วงเวลาที่กำหนด
-		beforeCleanup := len(ipLimiters)
+			inactiveThreshold := time.Now().Add(-1 * time.Hour)
 
-		for ip, limiter := range ipLimiters {
-			if limiter.lastAccess.Before(inactiveThreshold) {
-				delete(ipLimiters, ip)
+			limitersMutex.Lock()
+			defer limitersMutex.Unlock()
+
+			beforeCleanup := len(ipLimiters)
+
+			for ip, limiter := range ipLimiters {
+				if limiter.lastAccess.Before(inactiveThreshold) {
+					delete(ipLimiters, ip)
+				}
 			}
-		}
 
-		afterCleanup := len(ipLimiters)
-		limitersMutex.Unlock()
-
-		log.Printf("IP rate limiter cleanup completed: removed %d inactive limiters, %d remaining", beforeCleanup-afterCleanup, afterCleanup)
+			afterCleanup := len(ipLimiters)
+			log.Printf("IP rate limiter cleanup completed: removed %d inactive limiters, %d remaining", beforeCleanup-afterCleanup, afterCleanup)
+		}()
 	}
 }
 
-// ดึง limiter สำหรับ IP ที่กำหนด
 func getIPLimiter(ip string) *IPLimiter {
+	// First, check with read lock
 	limitersMutex.RLock()
 	ipLimiter, exists := ipLimiters[ip]
 	limitersMutex.RUnlock()
 
 	if !exists {
+		// If not found, get write lock to create
 		limitersMutex.Lock()
-		// ตรวจสอบอีกครั้งเพื่อป้องกัน race condition
+		defer limitersMutex.Unlock()
+
+		// Check again after getting the lock (double-checked locking pattern)
 		ipLimiter, exists = ipLimiters[ip]
 		if !exists {
+			// Create new rate limiter
 			requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
 			if requestsPerMinute <= 0 {
-				requestsPerMinute = 60 // ค่าเริ่มต้น
+				requestsPerMinute = 60 // Default value
 			}
-			limiter := rate.NewLimiter(rate.Every(time.Minute), requestsPerMinute)
+			limiter := rate.NewLimiter(rate.Limit(requestsPerMinute)/60, requestsPerMinute)
 			ipLimiter = &IPLimiter{
 				limiter:    limiter,
 				lastAccess: time.Now(),
 			}
 			ipLimiters[ip] = ipLimiter
-		} else {
-			// อัพเดทเวลาที่เข้าถึงล่าสุด
-			ipLimiter.lastAccess = time.Now()
+			return ipLimiter
 		}
-		limitersMutex.Unlock()
-	} else {
-		// อัพเดทเวลาที่เข้าถึงล่าสุด (ต้องล็อค write)
-		limitersMutex.Lock()
+		// Found after getting lock
 		ipLimiter.lastAccess = time.Now()
-		limitersMutex.Unlock()
+		return ipLimiter
+	}
+
+	// Update last access time with proper locking
+	limitersMutex.Lock()
+	defer limitersMutex.Unlock()
+
+	// Get the current limiter again under the write lock
+	ipLimiter, exists = ipLimiters[ip]
+	if !exists {
+		// This should never happen, but handle it gracefully
+		requestsPerMinute := config.Config.RateLimit.RequestsPerMinute
+		if requestsPerMinute <= 0 {
+			requestsPerMinute = 60
+		}
+		limiter := rate.NewLimiter(rate.Limit(requestsPerMinute)/60, requestsPerMinute)
+		ipLimiter = &IPLimiter{
+			limiter:    limiter,
+			lastAccess: time.Now(),
+		}
+		ipLimiters[ip] = ipLimiter
+	} else {
+		ipLimiter.lastAccess = time.Now()
 	}
 
 	return ipLimiter

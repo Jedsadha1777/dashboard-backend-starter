@@ -25,5 +25,5 @@ type AdminInput struct {
 type ChangePasswordInput struct {
 	CurrentPassword string `json:"current_password" binding:"required" validate:"required"`
 	NewPassword     string `json:"new_password" binding:"required" validate:"required,min=8,max=72,nefield=CurrentPassword"`
-	ConfirmPassword string `json:"confirm_password" binding:"required" validate:"required,eqfield=NewPassword"`
+	ConfirmPassword string `json:"confirm_password" binding:"required,eqfield=NewPassword" validate:"required,eqfield=NewPassword"`
 }
