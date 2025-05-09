@@ -24,16 +24,22 @@ var (
 	// Map เก็บ rate limiters แยกตาม IP
 	ipLimiters    = make(map[string]*IPLimiter)
 	limitersMutex sync.Mutex // ใช้ Mutex แทน RWMutex เพื่อป้องกัน race condition
+
+	cleanupInterval   = 5 * time.Minute  // clean IP ทุก 5 นาที
+	inactiveThreshold = 20 * time.Minute // เวลาที่ IP จะถูกถือว่าไม่ใช้งานแล้ว
 )
 
 // init initializes the package-level variables
 func init() {
+	time.Sleep(2 * time.Second)
+	cleanupInterval = time.Duration(config.Config.RateLimit.CleanupMinutes) * time.Minute
+	inactiveThreshold = time.Duration(config.Config.RateLimit.InactiveMinutes) * time.Minute
 	go cleanupIPLimiters()
 }
 
 // ฟังก์ชันล้าง map เป็นระยะเพื่อประหยัดหน่วยความจำ
 func cleanupIPLimiters() {
-	ticker := time.NewTicker(30 * time.Minute)
+	ticker := time.NewTicker(cleanupInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -45,7 +51,7 @@ func cleanupIPLimiters() {
 				}
 			}()
 
-			inactiveThreshold := time.Now().Add(-1 * time.Hour)
+			threshold := time.Now().Add(-1 * inactiveThreshold)
 
 			// ล็อค mutex เพื่อป้องกันการเข้าถึง map พร้อมกัน
 			limitersMutex.Lock()
@@ -54,11 +60,10 @@ func cleanupIPLimiters() {
 			beforeCleanup := len(ipLimiters)
 
 			// สร้าง slice เพื่อเก็บ keys ที่จะลบ
-			// ไม่ลบโดยตรงขณะวนลูปเพื่อป้องกัน concurrent map iteration and map write
 			var keysToRemove []string
 
 			for ip, limiter := range ipLimiters {
-				if limiter.lastAccess.Before(inactiveThreshold) {
+				if limiter.lastAccess.Before(threshold) {
 					keysToRemove = append(keysToRemove, ip)
 				}
 			}
@@ -69,7 +74,9 @@ func cleanupIPLimiters() {
 			}
 
 			afterCleanup := len(ipLimiters)
-			log.Printf("IP rate limiter cleanup completed: removed %d inactive limiters, %d remaining", beforeCleanup-afterCleanup, afterCleanup)
+			if beforeCleanup != afterCleanup {
+				log.Printf("IP rate limiter cleanup: removed %d inactive limiters, %d remaining", beforeCleanup-afterCleanup, afterCleanup)
+			}
 		}()
 	}
 }

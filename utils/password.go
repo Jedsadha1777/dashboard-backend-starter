@@ -11,8 +11,17 @@ const (
 	upperChars   = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	digitChars   = "0123456789"
 	specialChars = "!@#$%^&*()-_=+[]{}|;:,.<>?"
-	minLength    = 12 // เพิ่มความยาวขั้นต่ำของรหัสผ่านเป็น 12 ตัวอักษร
 )
+
+var (
+	minLength = 12 // ค่าเริ่มต้น
+)
+
+func InitPasswordConfig(minPasswordLength int) {
+	if minPasswordLength > 0 {
+		minLength = minPasswordLength
+	}
+}
 
 // GenerateRandomPassword generates a random password with the specified length
 // ensuring it contains at least one character from each character class

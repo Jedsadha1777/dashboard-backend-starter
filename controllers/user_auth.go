@@ -36,6 +36,16 @@ func UserRegister(c *gin.Context) {
 		return
 	}
 
+	// ตรวจสอบความแข็งแรงของรหัสผ่าน
+	isStrong, passwordMsg := utils.IsStrongPassword(input.Password)
+	if !isStrong {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error:   "Password not strong enough: " + passwordMsg,
+		})
+		return
+	}
+
 	// Check if email already exists
 	var existingUser models.User
 	if err := db.DB.Where("email = ?", input.Email).First(&existingUser).Error; err == nil {
@@ -274,6 +284,16 @@ func ChangeUserPassword(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
 			Error:   err.Error(),
+		})
+		return
+	}
+
+	// ตรวจสอบความแข็งแรงของรหัสผ่านใหม่
+	isStrong, passwordMsg := utils.IsStrongPassword(input.NewPassword)
+	if !isStrong {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Error:   "New password not strong enough: " + passwordMsg,
 		})
 		return
 	}

@@ -10,23 +10,31 @@ import (
 	"github.com/joho/godotenv"
 )
 
+type SecurityConfig struct {
+	MinPasswordLength int
+}
+
 // Configuration contains all app configuration
 type Configuration struct {
 	Database  DatabaseConfig
 	Server    ServerConfig
 	JWT       JWTConfig
 	RateLimit RateLimitConfig
+	Security  SecurityConfig
 }
 
 // DatabaseConfig contains database related configuration
 type DatabaseConfig struct {
-	User     string
-	Password string
-	Name     string
-	Port     string
-	Host     string
-	TimeZone string
-	SSLMode  string
+	User         string
+	Password     string
+	Name         string
+	Port         string
+	Host         string
+	TimeZone     string
+	SSLMode      string
+	MaxIdleConns int
+	MaxOpenConns int
+	MaxLifetime  int // in minutes
 }
 
 // ServerConfig contains server related configuration
@@ -47,6 +55,8 @@ type JWTConfig struct {
 type RateLimitConfig struct {
 	RequestsPerMinute int
 	LimitedPaths      []string // Add paths that should be rate-limited
+	CleanupMinutes    int      // ระยะเวลาในการทำความสะอาด limiter (นาที)
+	InactiveMinutes   int      // ระยะเวลาที่ถือว่า IP ไม่ได้ใช้งานแล้ว (นาที)
 }
 
 var Config Configuration
@@ -59,15 +69,22 @@ func Init() error {
 		log.Println("No .env file found, using system environment variables")
 	}
 
+	Config.Security = SecurityConfig{
+		MinPasswordLength: getEnvAsInt("SECURITY_MIN_PASSWORD_LENGTH", 12),
+	}
+
 	// Initialize database config
 	Config.Database = DatabaseConfig{
-		User:     getEnv("DB_USER", "postgres"),
-		Password: getEnv("DB_PASSWORD", ""),
-		Name:     getEnv("DB_NAME", "dashboard"),
-		Port:     getEnv("DB_PORT", "5432"),
-		Host:     getEnv("DB_HOST", "localhost"),
-		TimeZone: getEnv("DB_TIMEZONE", "UTC"),
-		SSLMode:  getEnv("DB_SSLMODE", "disable"),
+		User:         getEnv("DB_USER", "postgres"),
+		Password:     getEnv("DB_PASSWORD", ""),
+		Name:         getEnv("DB_NAME", "dashboard"),
+		Port:         getEnv("DB_PORT", "5432"),
+		Host:         getEnv("DB_HOST", "localhost"),
+		TimeZone:     getEnv("DB_TIMEZONE", "UTC"),
+		SSLMode:      getEnv("DB_SSLMODE", "disable"),
+		MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 10),
+		MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 100),
+		MaxLifetime:  getEnvAsInt("DB_CONN_MAX_LIFETIME", 60), // 60 minutes default
 	}
 
 	// ดึงค่า trusted proxies จาก env (เพิ่มส่วนนี้)
@@ -116,6 +133,8 @@ func Init() error {
 	Config.RateLimit = RateLimitConfig{
 		RequestsPerMinute: getEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60),
 		LimitedPaths:      rateLimitPaths,
+		CleanupMinutes:    getEnvAsInt("RATE_LIMIT_CLEANUP_MINUTES", 5),
+		InactiveMinutes:   getEnvAsInt("RATE_LIMIT_INACTIVE_MINUTES", 20),
 	}
 
 	return nil

@@ -54,9 +54,9 @@ func Init() error {
 	}
 
 	// Configure connection pool
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetMaxIdleConns(config.Config.Database.MaxIdleConns)
+	sqlDB.SetMaxOpenConns(config.Config.Database.MaxOpenConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(config.Config.Database.MaxLifetime) * time.Minute)
 
 	// Run migrations
 	if err := runMigrations(); err != nil {

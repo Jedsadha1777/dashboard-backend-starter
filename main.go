@@ -37,6 +37,8 @@ func main() {
 		log.Fatalf("Failed to initialize validator: %v", err)
 	}
 
+	utils.InitPasswordConfig(config.Config.Security.MinPasswordLength)
+
 	// Initialize JWT
 	if err := utils.InitJWT(); err != nil {
 		log.Fatalf("Failed to initialize JWT: %v", err)
