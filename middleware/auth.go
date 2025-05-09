@@ -38,6 +38,7 @@ func cleanupIPLimiters() {
 
 	for range ticker.C {
 		func() {
+			// ใช้ defer recover เพื่อป้องกัน panic ที่อาจเกิดขึ้น
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Error during IP limiter cleanup: %v", r)
@@ -46,15 +47,25 @@ func cleanupIPLimiters() {
 
 			inactiveThreshold := time.Now().Add(-1 * time.Hour)
 
+			// ล็อค mutex เพื่อป้องกันการเข้าถึง map พร้อมกัน
 			limitersMutex.Lock()
 			defer limitersMutex.Unlock()
 
 			beforeCleanup := len(ipLimiters)
 
+			// สร้าง slice เพื่อเก็บ keys ที่จะลบ
+			// ไม่ลบโดยตรงขณะวนลูปเพื่อป้องกัน concurrent map iteration and map write
+			var keysToRemove []string
+
 			for ip, limiter := range ipLimiters {
 				if limiter.lastAccess.Before(inactiveThreshold) {
-					delete(ipLimiters, ip)
+					keysToRemove = append(keysToRemove, ip)
 				}
+			}
+
+			// ลบ keys ที่หมดอายุ
+			for _, ip := range keysToRemove {
+				delete(ipLimiters, ip)
 			}
 
 			afterCleanup := len(ipLimiters)

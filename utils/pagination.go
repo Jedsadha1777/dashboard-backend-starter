@@ -140,20 +140,32 @@ func sanitizeOrderBy(orderBy string) string {
 		"last_login":   true,
 	}
 
+	// ตรวจสอบว่า orderBy ไม่เป็นค่าว่าง
+	if orderBy == "" {
+		return "created_at desc" // ค่าเริ่มต้นที่ปลอดภัย หากเป็นค่าว่าง
+	}
+
 	orderByParts := strings.Split(orderBy, " ")
 	if len(orderByParts) < 1 || len(orderByParts) > 2 {
 		return "created_at desc" // ค่าเริ่มต้นที่ปลอดภัย
 	}
 
 	column := strings.ToLower(orderByParts[0])
+
+	// ตรวจสอบว่าเป็นคอลัมน์ที่อนุญาตหรือไม่
 	if !allowedColumns[column] {
 		return "created_at desc" // ค่าเริ่มต้นที่ปลอดภัย
 	}
 
 	direction := "asc"
 	if len(orderByParts) == 2 {
-		if strings.ToLower(orderByParts[1]) == "desc" {
+		dirPart := strings.ToLower(orderByParts[1])
+		// ตรวจสอบว่าเป็น asc หรือ desc เท่านั้น
+		if dirPart == "desc" {
 			direction = "desc"
+		} else if dirPart != "asc" {
+			// ถ้าไม่ใช่ทั้ง asc หรือ desc ให้ใช้ค่าเริ่มต้น
+			return "created_at desc"
 		}
 	}
 
