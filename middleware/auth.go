@@ -25,15 +25,21 @@ var (
 	ipLimiters    = make(map[string]*IPLimiter)
 	limitersMutex sync.Mutex // ใช้ Mutex แทน RWMutex เพื่อป้องกัน race condition
 
-	cleanupInterval   = 5 * time.Minute  // clean IP ทุก 5 นาที
-	inactiveThreshold = 20 * time.Minute // เวลาที่ IP จะถูกถือว่าไม่ใช้งานแล้ว
+	cleanupInterval   = 5 * time.Minute  // clean IP ทุก 5 นาที (ค่าเริ่มต้น)
+	inactiveThreshold = 20 * time.Minute // เวลาที่ IP จะถูกถือว่าไม่ใช้งานแล้ว (ค่าเริ่มต้น)
 )
 
-// init initializes the package-level variables
-func init() {
-	time.Sleep(2 * time.Second)
+// InitRateLimiter initializes cleanup intervals and starts the cleanup goroutine.
+// This should be called after config.Init() so that configuration values are loaded.
+func InitRateLimiter() {
 	cleanupInterval = time.Duration(config.Config.RateLimit.CleanupMinutes) * time.Minute
+	if cleanupInterval <= 0 {
+		cleanupInterval = 5 * time.Minute
+	}
 	inactiveThreshold = time.Duration(config.Config.RateLimit.InactiveMinutes) * time.Minute
+	if inactiveThreshold <= 0 {
+		inactiveThreshold = 20 * time.Minute
+	}
 	go cleanupIPLimiters()
 }
 

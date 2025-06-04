@@ -11,6 +11,9 @@ import (
 
 // SetupRouter configures all application routes
 func SetupRouter() *gin.Engine {
+	// Initialize rate limiter now that configuration is loaded
+	middleware.InitRateLimiter()
+
 	r := gin.Default()
 
 	// ตั้งค่า trusted proxies
