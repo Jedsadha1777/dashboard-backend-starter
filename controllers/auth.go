@@ -29,7 +29,16 @@ type LoginResponse struct {
 	UserType     string    `json:"user_type"`
 }
 
-// Login handles admin authentication
+// @Summary Admin login
+// @Description Authenticate admin user with email and password
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param input body LoginInput true "Login credentials"
+// @Success 200 {object} Response{data=LoginResponse} "Login successful"
+// @Failure 400 {object} Response "Invalid input"
+// @Failure 401 {object} Response "Invalid credentials"
+// @Router /auth/login [post]
 func Login(c *gin.Context) {
 	var input LoginInput
 

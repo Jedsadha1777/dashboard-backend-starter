@@ -31,9 +31,22 @@ var (
 
 // init initializes the package-level variables
 func init() {
-	time.Sleep(2 * time.Second)
-	cleanupInterval = time.Duration(config.Config.RateLimit.CleanupMinutes) * time.Minute
-	inactiveThreshold = time.Duration(config.Config.RateLimit.InactiveMinutes) * time.Minute
+	// // time.Sleep(2 * time.Second)
+	// cleanupInterval = time.Duration(config.Config.RateLimit.CleanupMinutes) * time.Minute
+	// inactiveThreshold = time.Duration(config.Config.RateLimit.InactiveMinutes) * time.Minute
+
+	// เพิ่มการตรวจสอบ config
+	if config.Config.RateLimit.CleanupMinutes <= 0 {
+		cleanupInterval = 5 * time.Minute // default value
+	} else {
+		cleanupInterval = time.Duration(config.Config.RateLimit.CleanupMinutes) * time.Minute
+	}
+
+	if config.Config.RateLimit.InactiveMinutes <= 0 {
+		inactiveThreshold = 20 * time.Minute // default value
+	} else {
+		inactiveThreshold = time.Duration(config.Config.RateLimit.InactiveMinutes) * time.Minute
+	}
 	go cleanupIPLimiters()
 }
 

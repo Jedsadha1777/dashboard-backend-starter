@@ -6,7 +6,11 @@ import (
 	"dashboard-starter/middleware"
 	"log"
 
+	_ "dashboard-starter/docs"
+
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // SetupRouter configures all application routes
@@ -26,6 +30,10 @@ func SetupRouter() *gin.Engine {
 	// Apply global middlewares
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.RateLimitMiddleware())
+
+	// swag...
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	//swag end
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
