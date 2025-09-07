@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
 
 type SecurityConfig struct {
@@ -68,6 +69,16 @@ func Init() error {
 	if err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
+
+	// Viper for enhanced config management
+	viper.SetConfigFile(".env")
+	viper.SetConfigType("env")
+	viper.AutomaticEnv()
+
+	if err := viper.ReadInConfig(); err != nil {
+		log.Printf("Warning: Could not read config file with Viper: %v", err)
+	}
+	// Viper end
 
 	Config.Security = SecurityConfig{
 		MinPasswordLength: getEnvAsInt("SECURITY_MIN_PASSWORD_LENGTH", 12),
@@ -138,6 +149,21 @@ func Init() error {
 	}
 
 	return nil
+}
+
+// Viper
+func GetViperString(key, fallback string) string {
+	if viper.IsSet(key) {
+		return viper.GetString(key)
+	}
+	return getEnv(key, fallback)
+}
+
+func GetViperInt(key string, fallback int) int {
+	if viper.IsSet(key) {
+		return viper.GetInt(key)
+	}
+	return getEnvAsInt(key, fallback)
 }
 
 // getEnv retrieves environment variable with fallback value

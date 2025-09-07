@@ -11,11 +11,18 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+
+	"dashboard-starter/pkg/metrics"
 )
 
 // SetupRouter configures all application routes
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
+
+	//metrics
+	r.Use(metrics.PrometheusMiddleware())
+	r.GET("/metrics", metrics.Handler())
+	//metrics
 
 	// ตั้งค่า trusted proxies
 	trustedProxies := config.Config.Server.TrustedProxies

@@ -4,6 +4,7 @@ import (
 	"context"
 	"dashboard-starter/config"
 	"dashboard-starter/db"
+	"dashboard-starter/pkg/logger"
 	"dashboard-starter/routes"
 	"dashboard-starter/utils"
 	"fmt"
@@ -13,15 +14,16 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"go.uber.org/zap"
+
+	"dashboard-starter/pkg/cache"
+	"dashboard-starter/pkg/email"
 )
 
 func init() {
 	// Set default timezone to UTC
 	time.Local = time.UTC
-
-	// Initialize logging
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	log.SetOutput(os.Stdout)
 }
 
 // @title Dashboard API
@@ -45,28 +47,60 @@ func init() {
 // @description Type "Bearer" followed by a space and JWT token.
 
 func main() {
-	log.Println("Starting application...")
+	// Initialize logger first
+	if err := logger.Init("development"); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Logger.Sync()
+
+	logger.Info("Starting application...")
 
 	// Load configuration
 	if err := config.Init(); err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		logger.Fatal("Failed to load configuration", zap.Error(err))
+	}
+
+	// Initialize Redis cache (optional)
+	cacheConfig := cache.Config{
+		Host:     "localhost",
+		Port:     "6379",
+		Password: "",
+		DB:       0,
+	}
+
+	if err := cache.Init(cacheConfig); err != nil {
+		logger.Warn("Starting without Redis cache", zap.Error(err))
+	}
+
+	// Initialize Email service
+	emailConfig := email.Config{
+		SMTPHost:     "", // Empty = mock mode
+		SMTPPort:     "587",
+		SMTPUser:     "",
+		SMTPPassword: "",
+		FromEmail:    "noreply@yourdomain.com",
+		FromName:     "Dashboard Team",
+	}
+
+	if err := email.Init(emailConfig); err != nil {
+		logger.Warn("Email service initialization failed", zap.Error(err))
 	}
 
 	// Initialize validation
 	if err := utils.InitValidator(); err != nil {
-		log.Fatalf("Failed to initialize validator: %v", err)
+		logger.Fatal("Failed to initialize validator", zap.Error(err))
 	}
 
 	utils.InitPasswordConfig(config.Config.Security.MinPasswordLength)
 
 	// Initialize JWT
 	if err := utils.InitJWT(); err != nil {
-		log.Fatalf("Failed to initialize JWT: %v", err)
+		logger.Fatal("Failed to initialize JWT", zap.Error(err))
 	}
 
 	// Initialize database
 	if err := db.Init(); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.Fatal("Failed to initialize database", zap.Error(err))
 	}
 
 	// Ensure database is closed when application exits
@@ -75,7 +109,7 @@ func main() {
 
 	// Seed admin user
 	if err := db.SeedAdmin(); err != nil {
-		log.Fatalf("Failed to seed admin user: %v", err)
+		logger.Fatal("Failed to seed admin user", zap.Error(err))
 	}
 
 	// Setup HTTP router
@@ -92,9 +126,10 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Server starting on port %s", config.Config.Server.Port)
+		logger.Info("Server starting", zap.String("port", config.Config.Server.Port))
+		logger.Info("Swagger UI available", zap.String("url", fmt.Sprintf("http://localhost:%s/swagger/index.html", config.Config.Server.Port)))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
@@ -102,7 +137,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down server...")
+	logger.Info("Shutting down server...")
 
 	// Create context with timeout for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -110,8 +145,8 @@ func main() {
 
 	// Shutdown the server
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
-	log.Println("Server exited properly")
+	logger.Info("Server exited properly")
 }
