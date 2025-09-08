@@ -4,7 +4,7 @@ import (
 	"context"
 	"dashboard-starter/config"
 	"dashboard-starter/db"
-	"dashboard-starter/pkg/logger"
+	"dashboard-starter/internal/infrastructure/logger"
 	"dashboard-starter/routes"
 	"dashboard-starter/utils"
 	"fmt"
@@ -15,14 +15,11 @@ import (
 	"syscall"
 	"time"
 
-	"go.uber.org/zap"
-
-	"dashboard-starter/pkg/cache"
-	"dashboard-starter/pkg/email"
+	"dashboard-starter/internal/infrastructure/cache"
+	"dashboard-starter/internal/infrastructure/email"
 )
 
 func init() {
-	// Set default timezone to UTC
 	time.Local = time.UTC
 }
 
@@ -48,16 +45,16 @@ func init() {
 
 func main() {
 	// Initialize logger first
-	if err := logger.Init("development"); err != nil {
+	_, err := logger.NewZapLogger("development")
+	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
-	defer logger.Logger.Sync()
-
-	logger.Info("Starting application...")
+	log.Println("Starting application...")
 
 	// Load configuration
 	if err := config.Init(); err != nil {
-		logger.Fatal("Failed to load configuration", zap.Error(err))
+		log.Fatalf("Failed to load configuration: %v", err)
+
 	}
 
 	// Initialize Redis cache (optional)
@@ -68,8 +65,11 @@ func main() {
 		DB:       0,
 	}
 
-	if err := cache.Init(cacheConfig); err != nil {
-		logger.Warn("Starting without Redis cache", zap.Error(err))
+	redisCache, err := cache.NewRedisCache(cacheConfig)
+	if err != nil {
+		log.Printf("Starting without Redis cache: %v", err)
+	} else {
+		log.Println("Redis cache initialized successfully")
 	}
 
 	// Initialize Email service
@@ -82,25 +82,24 @@ func main() {
 		FromName:     "Dashboard Team",
 	}
 
-	if err := email.Init(emailConfig); err != nil {
-		logger.Warn("Email service initialization failed", zap.Error(err))
-	}
+	emailService := email.NewSMTPEmailService(emailConfig)
+	log.Println("Email service initialized")
 
 	// Initialize validation
 	if err := utils.InitValidator(); err != nil {
-		logger.Fatal("Failed to initialize validator", zap.Error(err))
+		log.Fatalf("Failed to initialize validator: %v", err)
 	}
 
 	utils.InitPasswordConfig(config.Config.Security.MinPasswordLength)
 
 	// Initialize JWT
 	if err := utils.InitJWT(); err != nil {
-		logger.Fatal("Failed to initialize JWT", zap.Error(err))
+		log.Fatalf("Failed to initialize JWT: %v", err)
 	}
 
 	// Initialize database
 	if err := db.Init(); err != nil {
-		logger.Fatal("Failed to initialize database", zap.Error(err))
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
 	// Ensure database is closed when application exits
@@ -109,10 +108,10 @@ func main() {
 
 	// Seed admin user
 	if err := db.SeedAdmin(); err != nil {
-		logger.Fatal("Failed to seed admin user", zap.Error(err))
+		log.Fatalf("Failed to seed admin user: %v", err)
 	}
 
-	// Setup HTTP router
+	// Setup HTTP router with new architecture
 	router := routes.SetupRouter()
 
 	// Create HTTP server with timeouts
@@ -126,10 +125,10 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Server starting", zap.String("port", config.Config.Server.Port))
-		logger.Info("Swagger UI available", zap.String("url", fmt.Sprintf("http://localhost:%s/swagger/index.html", config.Config.Server.Port)))
+		log.Printf("Server starting on port: %s", config.Config.Server.Port)
+		log.Printf("Swagger UI available at: http://localhost:%s/swagger/index.html", config.Config.Server.Port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start server", zap.Error(err))
+			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
@@ -137,7 +136,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	logger.Info("Shutting down server...")
+	log.Println("Shutting down server...")
 
 	// Create context with timeout for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -145,8 +144,12 @@ func main() {
 
 	// Shutdown the server
 	if err := server.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	logger.Info("Server exited properly")
+	log.Println("Server exited properly")
+
+	// Log usage information for unused services (for future expansion)
+	_ = redisCache   // Redis cache is initialized but not used in handlers yet
+	_ = emailService // Email service is initialized but not used in handlers yet
 }

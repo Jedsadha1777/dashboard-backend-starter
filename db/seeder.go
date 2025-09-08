@@ -1,7 +1,8 @@
 package db
 
 import (
-	"dashboard-starter/models"
+	authEntity "dashboard-starter/internal/domain/auth/entity"
+	userEntity "dashboard-starter/internal/domain/user/entity"
 	"dashboard-starter/utils"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 func SeedAdmin() error {
 	// Check if any admin exists
 	var count int64
-	if err := DB.Model(&models.Admin{}).Count(&count).Error; err != nil {
+	if err := DB.Model(&authEntity.Admin{}).Count(&count).Error; err != nil {
 		return err
 	}
 
@@ -37,7 +38,8 @@ func SeedAdmin() error {
 
 		// Create admin in a transaction
 		err = Transaction(func(tx *gorm.DB) error {
-			admin := models.Admin{
+			admin := authEntity.Admin{
+
 				Email:        "admin@example.com",
 				Password:     string(hashed),
 				TokenVersion: 1,
@@ -65,7 +67,8 @@ func SeedAdmin() error {
 		log.Println("IMPORTANT: Please change this password immediately after first login")
 	} else {
 		// If admin already exists, get the ID of the first admin
-		var admin models.Admin
+		var admin authEntity.Admin
+
 		if err := DB.First(&admin).Error; err != nil {
 			log.Printf("Failed to get existing admin ID: %v", err)
 			// Continue with default admin ID
@@ -87,7 +90,8 @@ func SeedAdmin() error {
 // SeedTestData seeds the database with test data (for development only)
 func SeedTestData(adminID uint) error {
 	// Create test users with AdminID (admin-created users)
-	testUsers := []models.User{
+	testUsers := []userEntity.User{
+
 		{Name: "John Doe", Email: "john.doe@example.com", AdminID: adminID},
 		{Name: "Jane Smith", Email: "jane.smith@example.com", AdminID: adminID},
 		{Name: "Bob Johnson", Email: "bob.johnson@example.com", AdminID: adminID},
@@ -97,7 +101,7 @@ func SeedTestData(adminID uint) error {
 
 	// Check if test data already exists
 	var count int64
-	if err := DB.Model(&models.User{}).Where("admin_id = ?", adminID).Count(&count).Error; err != nil {
+	if err := DB.Model(&userEntity.User{}).Where("admin_id = ?", adminID).Count(&count).Error; err != nil {
 		return err
 	}
 
@@ -146,7 +150,8 @@ func SeedTestData(adminID uint) error {
 // SeedTestUsers creates self-registered test users
 func SeedTestUsers() error {
 	// Create self-registered users (no AdminID)
-	selfRegisteredUsers := []models.User{
+	selfRegisteredUsers := []userEntity.User{
+
 		{Name: "Sam Wilson", Email: "sam.wilson@example.com"},
 		{Name: "Maria Rodriguez", Email: "maria.rodriguez@example.com"},
 		{Name: "David Kim", Email: "david.kim@example.com"},
@@ -154,7 +159,7 @@ func SeedTestUsers() error {
 
 	// Check if self-registered test users already exist
 	var count int64
-	if err := DB.Model(&models.User{}).Where("admin_id = ? OR admin_id IS NULL", 0).Count(&count).Error; err != nil {
+	if err := DB.Model(&userEntity.User{}).Where("admin_id = ? OR admin_id IS NULL", 0).Count(&count).Error; err != nil {
 		return err
 	}
 

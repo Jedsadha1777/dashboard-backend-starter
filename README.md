@@ -1,377 +1,287 @@
-# Go Dashboard Backend Starter
+# Go Dashboard Backend Starter - Clean Architecture
 
-โปรเจกต์เริ่มต้นสำหรับการพัฒนา Backend สำหรับ Admin Dashboard โดยใช้ Go และ PostgreSQL
+โปรเจกต์ backend สำหรับ Admin Dashboard ที่ใช้ Clean Architecture และ Domain-Driven Design
 
-## คุณสมบัติหลัก
+## 🏗️ Architecture Overview
 
-- **Authentication & Authorization**
-  - ระบบ Authentication แบบ JWT พร้อม Token Versioning (github.com/golang-jwt/jwt/v5)
-  - ระบบ Refresh Token แยกต่างหาก (อายุ 1 ปี ตรงนี้เป็นค่าตั้งต้น ถ้าเอาไปใช้บน prod ควรแก้ไข)
-  - การจัดการเข้าสู่ระบบของ Admin, User และ IoT Device
-  - การรีเซ็ต API key และ token invalidation
-
-- **โครงสร้างแบบ Clean Architecture**
-  - แยกส่วน Controller/Service/Repository/Model
-  - การจัดโครงสร้างไฟล์ที่เป็นระเบียบและบำรุงรักษาง่าย
-  - Generic Repository Pattern เพื่อลดโค้ดที่ซ้ำซ้อน
-
-- **ฐานข้อมูลและการจัดการ**
-  - PostgreSQL + GORM (gorm.io/gorm)
-  - การจัดการ Transaction อย่างปลอดภัย
-  - Migrations และ Seeder อัตโนมัติ
-  - Soft Delete สำหรับการกู้คืนข้อมูล
-
-- **ระบบรักษาความปลอดภัย**
-  - IP-based Rate Limiting เพื่อป้องกันการโจมตี
-  - API Key Generation สำหรับ IoT Device
-  - การกรองข้อมูลนำเข้าและการตรวจสอบความถูกต้อง
-  - การเข้ารหัสรหัสผ่านด้วย bcrypt
-
-- **ความสะดวกในการพัฒนา**
-  - การตั้งค่าผ่านไฟล์ `.env` ด้วย github.com/joho/godotenv
-  - Structured Logging แบบปรับแต่งได้
-  - Graceful Shutdown เพื่อป้องกันการสูญเสียข้อมูล
-  - RESTful API ที่สอดคล้องกับมาตรฐาน
-
-- **ความพร้อมสำหรับการขยาย**
-  - การจัดการ Pagination สำหรับ endpoints ที่เกี่ยวข้องกับข้อมูลจำนวนมาก
-  - การจัดการ Caching และ Database Connection Pool
-  - โครงสร้างแบบโมดูลาร์เพื่อรองรับการขยาย
-  - การเพิ่มฟีเจอร์ใหม่ได้ง่าย
-
-## โครงสร้างโฟลเดอร์
+โปรเจกต์นี้ใช้ **Clean Architecture** พร้อม **Domain-Driven Design** เพื่อความยืดหยุ่น ทดสอบง่าย และบำรุงรักษาได้
 
 ```
-.
-├── cmd/
-│   ├── migrate/       # เครื่องมือสำหรับการ migration
-│   └── seed/          # เครื่องมือสำหรับการเพิ่มข้อมูลตั้งต้น
-├── config/            # การตั้งค่าแอปพลิเคชันและการโหลด env
-├── controllers/       # จัดการการรับ request และส่ง response
-├── db/                # การเชื่อมต่อฐานข้อมูล, Repository, Seeder, Transaction
-├── middleware/        # Auth, CORS, Rate Limiting middlewares
-├── models/            # GORM models และ Input validation structs
-├── routes/            # การกำหนด Router และการจัดกลุ่ม endpoints
-├── services/          # ตรรกะทางธุรกิจและการดำเนินการข้อมูล
-├── utils/             # JWT, Validation, Logging, Pagination
-├── main.go            # จุดเริ่มต้นแอปพลิเคชัน
-├── .env.example       # ตัวอย่างไฟล์การตั้งค่า environment
-├── go.mod / go.sum    # Go Modules
-└── README.md          # เอกสารโปรเจกต์
+dashboard-starter/
+├── cmd/                          # Application entry points
+│   ├── api/main.go              # HTTP API server
+│   └── seed/main.go             # Database seeding
+├── internal/                     # Private application code
+│   ├── domain/                   # Domain layer (business logic)
+│   │   ├── auth/                # Authentication domain
+│   │   ├── user/                # User management domain
+│   │   ├── device/              # IoT device domain
+│   │   ├── article/             # Content management domain
+│   │   └── shared/              # Shared domain models
+│   ├── application/              # Application layer (use cases)
+│   │   ├── dto/                 # Data transfer objects
+│   │   ├── ports/               # Interface definitions
+│   │   └── services/            # Application services
+│   ├── infrastructure/           # Infrastructure layer
+│   │   ├── database/            # Database implementations
+│   │   ├── cache/               # Cache implementations
+│   │   ├── email/               # Email service
+│   │   └── logger/              # Logging service
+│   └── interfaces/               # Interface adapters
+│       └── http/                # HTTP layer
+│           ├── handlers/        # HTTP handlers
+│           └── middleware/      # HTTP middleware
+├── pkg/                         # Public packages
+├── configs/                     # Configuration files
+├── migrations/                  # Database migrations
+└── tests/                       # Integration tests
 ```
 
-## ความต้องการของระบบ
+## ✨ คุณสมบัติหลัก
 
+### **Authentication & Authorization**
+- **3 Authentication Domains**: Admin, User, Device
+- JWT + Refresh Token พร้อม Token Versioning
+- Role-based access control
+- Strong password validation
+- API Key สำหรับ IoT devices
+
+### **Clean Architecture Benefits**
+- **Domain-Driven Design**: แยก business domains ชัดเจน
+- **Dependency Inversion**: Infrastructure ไม่ขึ้นกับ Domain
+- **Testability**: แต่ละ layer test ได้อิสระ
+- **Maintainability**: เพิ่มฟีเจอร์ใหม่ง่าย
+- **Scalability**: พร้อมแยกเป็น microservices
+
+### **Database & Repository**
+- PostgreSQL + GORM
+- Repository pattern พร้อม interfaces
+- Transaction management
+- Auto migrations และ seeding
+- Connection pooling
+
+### **Security & Performance**
+- IP-based rate limiting
+- CORS middleware
+- SQL injection protection
+- Trusted proxy configuration
+- Password hashing with bcrypt
+
+### **Infrastructure**
+- Structured logging (Zap)
+- Redis caching (optional)
+- Email service (SMTP/Mock)
+- Prometheus metrics
+- Graceful shutdown
+
+### **Development Experience**
+- Hot reload with Air
+- Swagger documentation
+- Comprehensive error handling
+- Validation with custom messages
+- Environment-based configuration
+
+## 🚀 Quick Start
+
+### 1. Requirements
 - Go 1.20+
 - PostgreSQL 13+
-- Git
+- Redis (optional)
 
-## เริ่มต้นอย่างรวดเร็ว
-
-### 1. Clone โปรเจกต์
+### 2. Installation
 
 ```bash
-git clone https://github.com/yourusername/dashboard-starter.git
+# Clone repository
+git clone <repository-url>
 cd dashboard-starter
-```
 
-### 2. สร้างไฟล์ `.env`
+# Install dependencies
+go mod tidy
 
-สร้างไฟล์ `.env` จาก `.env.example` และแก้ไขค่าต่างๆ ตามความเหมาะสม:
-
-```bash
+# Setup environment
 cp .env.example .env
-# แก้ไขไฟล์ .env ตามความเหมาะสม
+# Edit .env with your configuration
 ```
 
-รายละเอียดตัวแปรสภาพแวดล้อมที่สำคัญ:
+### 3. Configuration
 
-```
-# Database Configuration
+Key environment variables:
+
+```env
+# Database
 DB_USER=postgres
-DB_PASSWORD=your_secure_password_here
+DB_PASSWORD=your_password
 DB_NAME=dashboard
-DB_PORT=5432
 DB_HOST=localhost
-DB_TIMEZONE=UTC
-DB_SSLMODE=disable
+DB_PORT=5432
 
-# Server Configuration
+# Security
+JWT_SECRET=your_strong_secret_key
+SECURITY_MIN_PASSWORD_LENGTH=12
+
+# Server
 SERVER_PORT=8080
-SERVER_READ_TIMEOUT=10
-SERVER_WRITE_TIMEOUT=10
-# ตั้งค่า trusted proxies (ว่างเปล่า = ไม่เชื่อถือ proxy ใดๆ)
 TRUSTED_PROXIES=
-
-# JWT Configuration
-JWT_SECRET=your_strong_random_jwt_secret_key_here
-JWT_EXPIRY_MINUTES=1440
-
-# Logging Configuration
-LOG_LEVEL=info
-LOG_TO_FILE=false
 
 # Rate Limiting
 RATE_LIMIT_REQUESTS_PER_MINUTE=60
-RATE_LIMIT_PATHS=/api/v1/auth/login,/api/v1/auth/register,/api/v1/users
+RATE_LIMIT_PATHS=/api/v1/auth/login,/api/v1/user/auth/register
 ```
 
-### 3. ติดตั้ง Dependencies
+### 4. Database Setup
 
 ```bash
-go mod tidy
-```
-
-### 4. สร้างและเริ่มต้น Database
-
-```bash
-# สร้างฐานข้อมูลใน PostgreSQL
+# Create database
 createdb dashboard
 
-# ทำ migration และ seed
+# Run migrations and seed data
 go run cmd/seed/main.go
 ```
 
-### 5. รันเซิร์ฟเวอร์
-
-**ทางเลือกที่ 1: รันแบบปกติ**
+### 5. Run Application
 
 ```bash
+# Development (with hot reload)
+air
+
+# Or standard run
 go run main.go
 ```
 
-เซิร์ฟเวอร์จะเริ่มทำงานที่ `http://localhost:8080` (หรือพอร์ตที่กำหนดใน .env)
+Server starts at `http://localhost:8080`
+Swagger UI: `http://localhost:8080/swagger/index.html`
 
-**ทางเลือกที่ 2: รันพร้อม Hot Reload ด้วย air**
+## 📋 API Endpoints
 
-ติดตั้ง air (เพียงครั้งเดียว):
+### **Authentication**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/login` | Admin login |
+| POST | `/api/v1/auth/logout` | Admin logout |
+| POST | `/api/v1/auth/refresh` | Refresh access token |
+| GET | `/api/v1/auth/profile` | Get admin profile |
 
-```bash
-go install github.com/cosmtrek/air@latest
-```
+### **User Management**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/user/auth/register` | User registration |
+| POST | `/api/v1/user/auth/login` | User login |
+| GET | `/api/v1/user/profile` | Get user profile |
+| PUT | `/api/v1/user/profile` | Update user profile |
 
-ตรวจสอบให้แน่ใจว่า $GOPATH/bin หรือ $HOME/go/bin อยู่ใน $PATH
+### **Admin User Management**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/admin/users` | List users (paginated) |
+| POST | `/api/v1/admin/users` | Create user |
+| GET | `/api/v1/admin/users/:id` | Get user by ID |
+| PUT | `/api/v1/admin/users/:id` | Update user |
+| DELETE | `/api/v1/admin/users/:id` | Delete user |
 
-รัน:
+### **Device Management**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/device` | Device authentication |
+| GET | `/api/v1/admin/devices` | List devices |
+| POST | `/api/v1/admin/devices` | Register device |
+| POST | `/api/v1/admin/devices/:id/reset-key` | Reset API key |
 
-```bash
-air
-```
+### **Content Management**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/admin/articles` | List articles |
+| POST | `/api/v1/admin/articles` | Create article |
+| PUT | `/api/v1/admin/articles/:id` | Update article |
+| POST | `/api/v1/admin/articles/:id/publish` | Publish article |
 
-เซิร์ฟเวอร์จะรีโหลดโดยอัตโนมัติเมื่อไฟล์มีการเปลี่ยนแปลง
-
-## การตั้งค่า Trusted Proxies
-
-เพื่อแก้ไขคำเตือน "You trusted all proxies, this is NOT safe" ให้ตั้งค่า `TRUSTED_PROXIES` ในไฟล์ `.env`:
-
-1. สำหรับ Development ในเครื่องท้องถิ่น (ไม่เชื่อถือ proxy ใดๆ):
-```
-TRUSTED_PROXIES=
-```
-
-2. สำหรับใช้กับ Reverse Proxy เช่น Nginx:
-```
-TRUSTED_PROXIES=127.0.0.1,10.0.0.1
-```
-
-3. สำหรับใช้ในเครือข่ายภายใน:
-```
-TRUSTED_PROXIES=192.168.0.0/16,10.0.0.0/8
-```
-
-## API Endpoints
-
-### การจัดการ Authentication
-
-| Method | Endpoint | คำอธิบาย |
-|--------|----------|---------|
-| POST   | /api/v1/auth/login | เข้าสู่ระบบ admin (รับ token) |
-| POST   | /api/v1/auth/logout | ออกจากระบบ (invalidate token) |
-| POST   | /api/v1/auth/refresh | รีเฟรช access token ด้วย refresh token |
-| POST   | /api/v1/auth/device | ยืนยันตัวตนสำหรับอุปกรณ์ IoT |
-| GET    | /api/v1/auth/profile | ดึงข้อมูลโปรไฟล์ผู้ใช้งาน |
-
-### การจัดการผู้ใช้งาน
-
-| Method | Endpoint | คำอธิบาย |
-|--------|----------|---------|
-| GET    | /api/v1/admin/users | ดึงรายการผู้ใช้ (พร้อม pagination) |
-| GET    | /api/v1/admin/users/:id | ดึงข้อมูลผู้ใช้รายบุคคล |
-| POST   | /api/v1/admin/users | สร้างผู้ใช้ใหม่ |
-| PUT    | /api/v1/admin/users/:id | อัปเดตข้อมูลผู้ใช้ |
-| DELETE | /api/v1/admin/users/:id | ลบผู้ใช้ |
-
-### การจัดการอุปกรณ์ IoT
-
-| Method | Endpoint | คำอธิบาย |
-|--------|----------|---------|
-| GET    | /api/v1/admin/devices | ดึงรายการอุปกรณ์ (พร้อม pagination) |
-| GET    | /api/v1/admin/devices/:id | ดึงข้อมูลอุปกรณ์เฉพาะ |
-| POST   | /api/v1/admin/devices | ลงทะเบียนอุปกรณ์ใหม่ |
-| PUT    | /api/v1/admin/devices/:id | อัปเดตข้อมูลอุปกรณ์ |
-| DELETE | /api/v1/admin/devices/:id | ลบอุปกรณ์ |
-| POST   | /api/v1/admin/devices/:id/reset-key | รีเซ็ท API key ของอุปกรณ์ |
-
-### การจัดการบทความ
-
-| Method | Endpoint | คำอธิบาย |
-|--------|----------|---------|
-| GET    | /api/v1/admin/articles | ดึงรายการบทความ (พร้อม pagination และการค้นหา) |
-| GET    | /api/v1/admin/articles/:id | ดึงข้อมูลบทความเฉพาะ |
-| POST   | /api/v1/admin/articles | สร้างบทความใหม่ |
-| PUT    | /api/v1/admin/articles/:id | อัปเดตบทความ |
-| DELETE | /api/v1/admin/articles/:id | ลบบทความ |
-| POST   | /api/v1/admin/articles/:id/publish | เผยแพร่บทความ |
-
-### Admin Dashboard
-
-| Method | Endpoint | คำอธิบาย |
-|--------|----------|---------|
-| GET    | /api/v1/admin/dashboard | ข้อมูลสรุปสำหรับ admin dashboard |
-
-## ตัวอย่างการใช้งาน API
-
-### การเข้าสู่ระบบ Admin
+## 🧪 Testing
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@example.com", "password": "Admin@123!"}'
+# Run tests
+go test ./tests/... -v
+
+# Test coverage
+go test ./tests/... -coverprofile=coverage.out
+go tool cover -html=coverage.out -o coverage.html
 ```
 
-ตัวอย่างการตอบกลับ:
+## 🏗️ Development
 
-```json
-{
-  "success": true,
-  "data": {
-    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-    "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-    "expires_at": "2025-05-09T10:30:00Z",
-    "user_id": 1,
-    "user_type": "admin"
-  }
-}
-```
+### Adding New Domain
 
-### การสร้างบทความใหม่
-
+1. **Create domain structure**:
 ```bash
-curl -X POST http://localhost:8080/api/v1/admin/articles \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "title": "บทความใหม่",
-    "content": "เนื้อหาของบทความใหม่",
-    "slug": "new-article",
-    "summary": "สรุปย่อของบทความใหม่",
-    "status": "draft"
-  }'
+mkdir -p internal/domain/newdomain/{entity,repository,service,errors}
 ```
 
-ตัวอย่างการตอบกลับ:
+2. **Define entities** in `internal/domain/newdomain/entity/`
 
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "title": "บทความใหม่",
-    "content": "เนื้อหาของบทความใหม่",
-    "slug": "new-article",
-    "summary": "สรุปย่อของบทความใหม่",
-    "status": "draft",
-    "published_at": null,
-    "admin_id": 1,
-    "admin": {
-      "id": 1,
-      "email": "admin@example.com"
-    },
-    "created_at": "2025-05-08T15:30:00Z",
-    "updated_at": "2025-05-08T15:30:00Z"
-  }
-}
-```
+3. **Create repository interface** in `internal/domain/newdomain/repository/`
 
-## การตั้งค่า Rate Limiting
+4. **Implement repository** in `internal/infrastructure/database/`
 
-เพื่อป้องกัน API จากการใช้งานมากเกินไปหรือการโจมตี แอปพลิเคชันมีระบบ rate limiting ที่สามารถปรับแต่งได้ผ่านตัวแปรสภาพแวดล้อมต่อไปนี้:
+5. **Create application service** in `internal/application/services/`
 
-| ตัวแปร | คำอธิบาย | ค่าเริ่มต้น |
-|--------|----------|---------|
-| `RATE_LIMIT_REQUESTS_PER_MINUTE` | จำนวนคำขอสูงสุดที่อนุญาตต่อนาทีสำหรับ path ที่มีการจำกัด | 60 |
-| `RATE_LIMIT_PATHS` | รายการ API path ที่ควรมีการจำกัดอัตรา (คั่นด้วยเครื่องหมายจุลภาค) | `/api/v1/auth/login` |
+6. **Add HTTP handlers** in `internal/interfaces/http/handlers/`
 
-### ตัวอย่างการตั้งค่า
+7. **Update dependency injection** in `internal/interfaces/http/container.go`
 
-```
-# Rate Limiting
-RATE_LIMIT_REQUESTS_PER_MINUTE=60
-RATE_LIMIT_PATHS=/api/v1/auth/login,/api/v1/auth/register,/api/v1/admin/articles
-```
+### Code Organization Principles
 
-เมื่อตั้งค่านี้:
-- path `/api/v1/auth/login`, `/api/v1/auth/register`, และ `/api/v1/admin/articles` จะถูกจำกัดอัตรา
-- แต่ละ path จะอนุญาตให้มีการขอข้อมูลสูงสุด 60 ครั้งต่อนาที
-- เมื่อเกินขีดจำกัด API จะส่งกลับสถานะ 429 Too Many Requests
+- **Domain layer**: Pure business logic, no external dependencies
+- **Application layer**: Use cases, orchestrates domain operations
+- **Infrastructure layer**: External concerns (database, cache, email)
+- **Interface layer**: HTTP handlers, middleware, DTOs
 
-## Seeder และข้อมูลตั้งต้น
+### Best Practices
 
-เมื่อทำการรัน `main.go` หรือ `go run cmd/seed/main.go` โปรแกรมจะสร้างข้อมูลตั้งต้นโดยอัตโนมัติหากยังไม่มีข้อมูลในฐานข้อมูล:
+- Use dependency injection
+- Write tests for each layer
+- Keep domain logic pure
+- Use interfaces for external dependencies
+- Follow SOLID principles
 
-### บัญชี Admin เริ่มต้น
+## 📊 Monitoring & Observability
 
-- **Email**: admin@example.com
-- **Password**: Admin@123!
-- **ข้อควรระวัง**: ควรเปลี่ยนรหัสผ่านทันทีหลังจาก login ครั้งแรกในสภาพแวดล้อมการผลิต
+- **Metrics**: Prometheus metrics at `/metrics`
+- **Logging**: Structured logging with Zap
+- **Health Check**: Available at `/health`
+- **API Documentation**: Swagger UI at `/swagger/index.html`
 
-### ข้อมูลตัวอย่าง
+## 🔧 Production Deployment
 
-ระบบจะสร้างข้อมูลผู้ใช้ตัวอย่าง 5 รายการสำหรับการทดสอบในสภาพแวดล้อมการพัฒนา
+1. **Environment Setup**:
+   - Set `GIN_MODE=release`
+   - Configure strong `JWT_SECRET`
+   - Set up proper `TRUSTED_PROXIES`
+   - Configure Redis for caching
+   - Set up SMTP for emails
 
-## การทดสอบ
+2. **Database**:
+   - Use connection pooling
+   - Set up database backups
+   - Monitor query performance
 
-สามารถรันการทดสอบได้ด้วยคำสั่ง:
+3. **Security**:
+   - Use HTTPS
+   - Configure rate limiting
+   - Set up proper CORS
+   - Monitor for suspicious activity
 
-```bash
-go test ./...
-```
+## 📚 Architecture Documentation
 
-## การดำเนินงานในสภาพแวดล้อมการผลิต
+For detailed architecture information, see:
+- `UserAPI.md` - User management API documentation
+- `UserAuth.md` - Authentication system documentation
 
-สำหรับการใช้งานในสภาพแวดล้อมการผลิต ควรพิจารณาขั้นตอนต่อไปนี้:
+## 🤝 Contributing
 
-1. ตั้งค่า `JWT_SECRET` ที่ซับซ้อนและไม่คาดเดา
-2. เปิดใช้งาน SSL/TLS
-3. เปลี่ยนรหัสผ่าน admin เริ่มต้น
-4. กำหนดค่า `TRUSTED_PROXIES` อย่างเหมาะสม
-5. ตั้งค่า Rate Limiting ให้เหมาะสมกับการใช้งาน
-6. พิจารณาใช้ Docker สำหรับการ deploy
+1. Follow Clean Architecture principles
+2. Write tests for new features
+3. Update documentation
+4. Use conventional commit messages
+5. Ensure all tests pass
 
+## 📄 License
 
-## การเพิ่มโมเดลใหม่สำหรับ Migration
-
-โปรเจกต์นี้ใช้ระบบลงทะเบียนโมเดลแบบรวมศูนย์สำหรับการทำ database migrations 
-
-### วิธีเพิ่มโมเดลใหม่
-
-1. สร้างไฟล์โมเดลใหม่ในโฟลเดอร์ `models/`
-2. เพิ่มโมเดลในฟังก์ชัน `RegisterAllModels()` ในไฟล์ `db/models.go`:
-
-```go
-func RegisterAllModels() {
-    modelRegistry = []interface{}{
-        &models.User{},
-        &models.Admin{},
-        &models.RefreshToken{},
-        &models.Device{},
-        &models.Article{},
-        
-        // เพิ่มโมเดลใหม่ตรงนี้:
-        &models.Product{},     // <-- โมเดลใหม่
-        &models.Category{},    // <-- โมเดลใหม่อีกตัว
-    }
-    
-    log.Printf("Registered %d models for migrations", len(modelRegistry))
-}
-```
+MIT License 

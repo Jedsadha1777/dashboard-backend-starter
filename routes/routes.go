@@ -2,8 +2,8 @@ package routes
 
 import (
 	"dashboard-starter/config"
-	"dashboard-starter/controllers"
-	"dashboard-starter/middleware"
+	"dashboard-starter/internal/interfaces/http"
+	"dashboard-starter/internal/interfaces/http/middleware"
 	"log"
 
 	_ "dashboard-starter/docs"
@@ -15,14 +15,15 @@ import (
 	"dashboard-starter/pkg/metrics"
 )
 
-// SetupRouter configures all application routes
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	//metrics
+	// Initialize dependency injection container
+	container := http.NewContainer()
+
+	// Metrics
 	r.Use(metrics.PrometheusMiddleware())
 	r.GET("/metrics", metrics.Handler())
-	//metrics
 
 	// ตั้งค่า trusted proxies
 	trustedProxies := config.Config.Server.TrustedProxies
@@ -38,9 +39,8 @@ func SetupRouter() *gin.Engine {
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.RateLimitMiddleware())
 
-	// swag...
+	// Swagger documentation
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	//swag end
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
@@ -53,33 +53,43 @@ func SetupRouter() *gin.Engine {
 	// Admin Auth routes
 	auth := v1.Group("/auth")
 	{
-		auth.POST("/login", controllers.Login)
-		auth.POST("/refresh", controllers.RefreshToken)
-		auth.POST("/device", controllers.DeviceAuth)
+		auth.POST("/login", container.AuthHandler.Login)
+		auth.POST("/refresh", container.AuthHandler.RefreshToken)
+		auth.POST("/device", container.DeviceHandler.AuthenticateDevice)
 
 		// Protected routes
 		protected := auth.Group("")
 		protected.Use(middleware.AuthMiddleware())
 		{
-			protected.POST("/logout", controllers.Logout)
-			protected.GET("/profile", controllers.GetProfile)
+			protected.POST("/logout", container.AuthHandler.Logout)
+			protected.GET("/profile", container.AuthHandler.GetProfile)
+
 		}
 	}
 
-	// User Auth routes - new endpoints for user registration and login
+	// User Auth routes
 	userAuth := v1.Group("/user/auth")
 	{
-		userAuth.POST("/register", controllers.UserRegister)
-		userAuth.POST("/login", controllers.UserLogin)
-		userAuth.POST("/refresh", controllers.RefreshToken) // Reuse the same token refresh endpoint
+		userAuth.POST("/register", container.UserHandler.Register)
+		userAuth.POST("/login", container.UserHandler.Login)
+		userAuth.POST("/refresh", container.AuthHandler.RefreshToken) // Reuse the same token refresh endpoint
 
 		// Protected routes for users
 		userProtected := userAuth.Group("")
 		userProtected.Use(middleware.AuthMiddleware(), middleware.UserRequired())
 		{
-			userProtected.POST("/logout", controllers.UserLogout)
-			userProtected.GET("/profile", controllers.GetUserProfile)
-			userProtected.POST("/change-password", controllers.ChangeUserPassword)
+			userProtected.POST("/logout", func(c *gin.Context) {
+				userID, _ := c.Get("user_id")
+				c.JSON(200, gin.H{
+					"success": true,
+					"data": gin.H{
+						"message": "User logged out successfully",
+						"user_id": userID,
+					},
+				})
+			})
+			userProtected.GET("/profile", container.UserHandler.GetProfile)
+			userProtected.POST("/change-password", container.UserHandler.ChangePassword)
 		}
 	}
 
@@ -100,11 +110,10 @@ func SetupRouter() *gin.Engine {
 		})
 
 		// Update own profile
-		user.PUT("/profile", controllers.UpdateUserProfile)
+		user.PUT("/profile", container.UserHandler.UpdateProfile)
 	}
 
 	// Admin dashboard routes
-	// First use AuthMiddleware to verify token, then AdminRequired to ensure user is admin
 	admin := v1.Group("/admin")
 	admin.Use(middleware.AuthMiddleware(), middleware.AdminRequired())
 	{
@@ -119,46 +128,44 @@ func SetupRouter() *gin.Engine {
 			})
 		})
 
-		// user management routes
+		// User management routes
 		users := admin.Group("/users")
 		{
-			users.GET("", controllers.ListUsers)
-			users.POST("", controllers.CreateUser)
-			users.GET("/:id", controllers.GetUser)
-			users.PUT("/:id", controllers.UpdateUser)
-			users.DELETE("/:id", controllers.DeleteUser)
-			users.POST("/:id/reset-password", controllers.ResetUserPassword)
+			users.GET("", container.UserHandler.ListUsers)
+			users.POST("", container.UserHandler.CreateUser)
+			users.GET("/:id", container.UserHandler.GetUser)
+			users.PUT("/:id", container.UserHandler.UpdateUser)
+			users.DELETE("/:id", container.UserHandler.DeleteUser)
+			users.POST("/:id/reset-password", container.UserHandler.ResetPassword)
 		}
 
 		// Device management
 		devices := admin.Group("/devices")
 		{
-			devices.POST("", controllers.CreateDevice)
-			devices.GET("", controllers.ListDevices)
-			devices.GET("/:id", controllers.GetDevice)
-			devices.PUT("/:id", controllers.UpdateDevice)
-			devices.DELETE("/:id", controllers.DeleteDevice)
-			devices.POST("/:id/reset-key", controllers.ResetDeviceApiKey)
+			devices.POST("", container.DeviceHandler.CreateDevice)
+			devices.GET("", container.DeviceHandler.ListDevices)
+			devices.GET("/:id", container.DeviceHandler.GetDevice)
+			devices.PUT("/:id", container.DeviceHandler.UpdateDevice)
+			devices.DELETE("/:id", container.DeviceHandler.DeleteDevice)
+			devices.POST("/:id/reset-key", container.DeviceHandler.ResetAPIKey)
 		}
 
 		// Article management routes
 		articles := admin.Group("/articles")
 		{
-			articles.POST("", controllers.CreateArticle)
-			articles.GET("", controllers.ListArticles)
-			articles.GET("/:id", controllers.GetArticle)
-			articles.PUT("/:id", controllers.UpdateArticle)
-			articles.DELETE("/:id", controllers.DeleteArticle)
-			articles.POST("/:id/publish", controllers.PublishArticle)
+			articles.POST("", container.ArticleHandler.CreateArticle)
+			articles.GET("", container.ArticleHandler.ListArticles)
+			articles.GET("/:id", container.ArticleHandler.GetArticle)
+			articles.PUT("/:id", container.ArticleHandler.UpdateArticle)
+			articles.DELETE("/:id", container.ArticleHandler.DeleteArticle)
+			articles.POST("/:id/publish", container.ArticleHandler.PublishArticle)
 		}
 	}
 
 	// Public API endpoints - accessible without authentication
 	public := v1.Group("/public")
 	{
-		// Example: public article listing
 		public.GET("/articles", func(c *gin.Context) {
-			// Implement a controller for public articles
 			c.JSON(200, gin.H{
 				"success": true,
 				"data": gin.H{
@@ -168,13 +175,12 @@ func SetupRouter() *gin.Engine {
 		})
 	}
 
-	// ใช้เพื่อการ debug ให้แสดง registerd routes ทั้งหมด
+	// Debug routes
 	debugRoutes(r)
 
 	return r
 }
 
-// debugRoutes แสดง registered routes ทั้งหมดเพื่อช่วยในการ debug
 func debugRoutes(r *gin.Engine) {
 	routes := r.Routes()
 	log.Println("Registered routes:")

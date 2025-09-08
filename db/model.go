@@ -1,7 +1,11 @@
 package db
 
 import (
-	"dashboard-starter/models"
+	articleEntity "dashboard-starter/internal/domain/article/entity"
+	authEntity "dashboard-starter/internal/domain/auth/entity"
+	deviceEntity "dashboard-starter/internal/domain/device/entity"
+	userEntity "dashboard-starter/internal/domain/user/entity"
+
 	"log"
 )
 
@@ -14,11 +18,11 @@ var (
 func RegisterAllModels() {
 	// ล้างรายการเดิม (ถ้ามี) และเพิ่มโมเดลทั้งหมด
 	modelRegistry = []interface{}{
-		&models.User{},
-		&models.Admin{},
-		&models.RefreshToken{},
-		&models.Device{},
-		&models.Article{},
+		&userEntity.User{},
+		&authEntity.Admin{},
+		&authEntity.RefreshToken{},
+		&deviceEntity.Device{},
+		&articleEntity.Article{},
 		// เพิ่มโมเดลใหม่ตรงนี้:
 		// &models.Product{},
 		// &models.Category{},

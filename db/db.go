@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"dashboard-starter/config"
+	"dashboard-starter/internal/infrastructure"
 	"log"
 	"time"
 
@@ -12,7 +13,8 @@ import (
 )
 
 var (
-	DB *gorm.DB
+	DB           *gorm.DB
+	InfraFactory *infrastructure.InfrastructureFactory
 )
 
 // Init initializes the database connection
@@ -62,6 +64,9 @@ func Init() error {
 	if err := runMigrations(); err != nil {
 		return err
 	}
+
+	// Initialize infrastructure factory
+	InfraFactory = infrastructure.NewInfrastructureFactory(DB)
 
 	log.Println("Database connection established successfully")
 	return nil
