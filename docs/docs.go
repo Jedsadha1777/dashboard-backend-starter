@@ -44,7 +44,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/controllers.LoginInput"
+                            "$ref": "#/definitions/dto.LoginInput"
                         }
                     }
                 ],
@@ -54,13 +54,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/controllers.LoginResponse"
+                                            "$ref": "#/definitions/dto.LoginResponse"
                                         }
                                     }
                                 }
@@ -70,13 +70,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/controllers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Invalid credentials",
                         "schema": {
-                            "$ref": "#/definitions/controllers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -84,7 +84,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "controllers.LoginInput": {
+        "dto.LoginInput": {
             "type": "object",
             "required": [
                 "email",
@@ -100,7 +100,7 @@ const docTemplate = `{
                 }
             }
         },
-        "controllers.LoginResponse": {
+        "dto.LoginResponse": {
             "type": "object",
             "properties": {
                 "expires_at": {
@@ -120,7 +120,7 @@ const docTemplate = `{
                 }
             }
         },
-        "controllers.Response": {
+        "handlers.Response": {
             "type": "object",
             "properties": {
                 "data": {},

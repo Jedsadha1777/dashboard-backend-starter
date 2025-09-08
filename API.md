@@ -303,3 +303,10 @@ Default rate limits:
 - Other endpoints: 60 requests/minute
 
 Rate limiting is per IP address.
+
+
+## 📚 Related Documentation
+
+- [Adding New Features Guide](./ADDING_FEATURES.md)** - How to Add New Features: A Step-by-Step Guide
+- [Development Guide](./DEVELOPMENT.md)** - Development setup and guidelines
+- [Authentication Guide](./UserAuth.md)** - Authentication implementation details

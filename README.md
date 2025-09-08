@@ -103,8 +103,9 @@ dashboard-starter/
 ## 📚 Documentation
 
 - **[API Documentation](./API.md)** - Complete API endpoints reference
-- **[Authentication Guide](./UserAuth.md)** - Authentication implementation details
+- **[Adding New Features Guide](./ADDING_FEATURES.md)** - How to Add New Features: A Step-by-Step Guide
 - **[Development Guide](./DEVELOPMENT.md)** - Development setup and guidelines
+- **[Authentication Guide](./UserAuth.md)** - Authentication implementation details
 
 ## 🧪 Testing
 

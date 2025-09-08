@@ -293,5 +293,6 @@ AUTO_SEED=true
 
 ## 📚 Related Documentation
 
-- [API Documentation](./API.md) - API endpoints reference
-- [Development Guide](./DEVELOPMENT.md) - Development setup
+- [API Documentation](./API.md)** - Complete API endpoints reference
+- [Adding New Features Guide](./ADDING_FEATURES.md)** - How to Add New Features: A Step-by-Step Guide
+- [Development Guide](./DEVELOPMENT.md)** - Development setup and guidelines

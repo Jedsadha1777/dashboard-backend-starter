@@ -374,3 +374,11 @@ kill -9 <PID>
 - Ensure Air is installed
 - Check `.air.toml` configuration
 - Verify file permissions
+
+
+
+## 📚 Related Documentation
+
+- [API Documentation](./API.md)** - Complete API endpoints reference
+- [Adding New Features Guide](./ADDING_FEATURES.md)** - How to Add New Features: A Step-by-Step Guide
+- [Authentication Guide](./UserAuth.md)** - Authentication implementation details

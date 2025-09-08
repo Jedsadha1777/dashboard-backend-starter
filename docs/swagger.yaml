@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  controllers.LoginInput:
+  dto.LoginInput:
     properties:
       email:
         type: string
@@ -11,7 +11,7 @@ definitions:
     - email
     - password
     type: object
-  controllers.LoginResponse:
+  dto.LoginResponse:
     properties:
       expires_at:
         type: string
@@ -24,7 +24,7 @@ definitions:
       user_type:
         type: string
     type: object
-  controllers.Response:
+  handlers.Response:
     properties:
       data: {}
       error:
@@ -58,7 +58,7 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/controllers.LoginInput'
+          $ref: '#/definitions/dto.LoginInput'
       produces:
       - application/json
       responses:
@@ -66,19 +66,19 @@ paths:
           description: Login successful
           schema:
             allOf:
-            - $ref: '#/definitions/controllers.Response'
+            - $ref: '#/definitions/handlers.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/controllers.LoginResponse'
+                  $ref: '#/definitions/dto.LoginResponse'
               type: object
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/controllers.Response'
+            $ref: '#/definitions/handlers.Response'
         "401":
           description: Invalid credentials
           schema:
-            $ref: '#/definitions/controllers.Response'
+            $ref: '#/definitions/handlers.Response'
       summary: Admin login
       tags:
       - Authentication

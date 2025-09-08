@@ -38,7 +38,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/controllers.LoginInput"
+                            "$ref": "#/definitions/dto.LoginInput"
                         }
                     }
                 ],
@@ -48,13 +48,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/controllers.Response"
+                                    "$ref": "#/definitions/handlers.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/controllers.LoginResponse"
+                                            "$ref": "#/definitions/dto.LoginResponse"
                                         }
                                     }
                                 }
@@ -64,13 +64,13 @@
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/controllers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "401": {
                         "description": "Invalid credentials",
                         "schema": {
-                            "$ref": "#/definitions/controllers.Response"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     }
                 }
@@ -78,7 +78,7 @@
         }
     },
     "definitions": {
-        "controllers.LoginInput": {
+        "dto.LoginInput": {
             "type": "object",
             "required": [
                 "email",
@@ -94,7 +94,7 @@
                 }
             }
         },
-        "controllers.LoginResponse": {
+        "dto.LoginResponse": {
             "type": "object",
             "properties": {
                 "expires_at": {
@@ -114,7 +114,7 @@
                 }
             }
         },
-        "controllers.Response": {
+        "handlers.Response": {
             "type": "object",
             "properties": {
                 "data": {},
