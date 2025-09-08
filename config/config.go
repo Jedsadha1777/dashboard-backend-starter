@@ -17,11 +17,12 @@ type SecurityConfig struct {
 
 // Configuration contains all app configuration
 type Configuration struct {
-	Database  DatabaseConfig
-	Server    ServerConfig
-	JWT       JWTConfig
-	RateLimit RateLimitConfig
-	Security  SecurityConfig
+	Database    DatabaseConfig
+	Server      ServerConfig
+	JWT         JWTConfig
+	RateLimit   RateLimitConfig
+	Security    SecurityConfig
+	Environment string
 }
 
 // DatabaseConfig contains database related configuration
@@ -147,6 +148,9 @@ func Init() error {
 		CleanupMinutes:    getEnvAsInt("RATE_LIMIT_CLEANUP_MINUTES", 5),
 		InactiveMinutes:   getEnvAsInt("RATE_LIMIT_INACTIVE_MINUTES", 20),
 	}
+
+	// Environment setting
+	Config.Environment = getEnv("ENVIRONMENT", "production")
 
 	return nil
 }

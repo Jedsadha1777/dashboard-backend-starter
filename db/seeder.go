@@ -1,9 +1,11 @@
 package db
 
 import (
+	"dashboard-starter/config"
 	authEntity "dashboard-starter/internal/domain/auth/entity"
 	userEntity "dashboard-starter/internal/domain/user/entity"
 	"dashboard-starter/utils"
+	"os"
 	"time"
 
 	"log"
@@ -77,10 +79,19 @@ func SeedAdmin() error {
 		}
 	}
 
-	// After creating/verifying admin, seed test data
-	err := SeedTestData(adminID)
-	if err != nil {
-		return err
+	// After creating/verifying admin, seed test data only if enabled
+	shouldSeedTestData := false
+	if config.Config.Environment == "development" {
+		shouldSeedTestData = true
+	} else if envSeedTest := os.Getenv("SEED_TEST_DATA"); envSeedTest == "true" {
+		shouldSeedTestData = true
+	}
+
+	if shouldSeedTestData {
+		err := SeedTestData(adminID)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Seed test regular users (self-registered)
@@ -159,7 +170,7 @@ func SeedTestUsers() error {
 
 	// Check if self-registered test users already exist
 	var count int64
-	if err := DB.Model(&userEntity.User{}).Where("admin_id = ? OR admin_id IS NULL", 0).Count(&count).Error; err != nil {
+	if err := DB.Model(&userEntity.User{}).Where("admin_id = 0 OR admin_id IS NULL").Count(&count).Error; err != nil {
 		return err
 	}
 

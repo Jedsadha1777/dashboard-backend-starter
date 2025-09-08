@@ -106,9 +106,18 @@ func main() {
 	sqlDB, _ := db.DB.DB()
 	defer sqlDB.Close()
 
-	// Seed admin user
-	if err := db.SeedAdmin(); err != nil {
-		log.Fatalf("Failed to seed admin user: %v", err)
+	// Seed admin user only in development or when explicitly enabled
+	shouldSeed := false
+	if config.Config.Environment == "development" {
+		shouldSeed = true
+	} else if envSeed := os.Getenv("AUTO_SEED"); envSeed == "true" {
+		shouldSeed = true
+	}
+
+	if shouldSeed {
+		if err := db.SeedAdmin(); err != nil {
+			log.Printf("Warning: Failed to seed admin user: %v", err)
+		}
 	}
 
 	// Setup HTTP router with new architecture

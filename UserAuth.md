@@ -1,307 +1,268 @@
-# User Authentication System - Clean Architecture
+# Authentication System Guide
 
-This document explains the authentication system implementation using Clean Architecture principles.
+คู่มือระบบ Authentication แบบ Clean Architecture
 
-## 🏗️ Architecture Overview
+## 🔐 ภาพรวมระบบ
 
-The authentication system is built with Clean Architecture, separating concerns across different layers:
+ระบบรองรับ 3 ประเภทผู้ใช้:
+
+1. **Admin** - ผู้ดูแลระบบ
+2. **User** - ผู้ใช้งานทั่วไป  
+3. **Device** - อุปกรณ์ IoT
+
+## 🏗️ โครงสร้าง Authentication
 
 ```
-Authentication Flow:
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   HTTP Layer    │    │ Application Layer│    │  Domain Layer   │
-│                 │    │                  │    │                 │
-│ • AuthHandler   │───▶│ • AuthService    │───▶│ • Admin Entity  │
-│ • UserHandler   │    │ • UserService    │    │ • User Entity   │
-│ • Middleware    │    │ • DTOs           │    │ • Repositories  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│Infrastructure   │    │   Ports/Interfaces│    │ Database Layer  │
-│                 │    │                  │    │                 │
-│ • TokenRepo     │    │ • TokenRepository│    │ • GORM Models   │
-│ • AdminRepo     │    │ • AdminRepository│    │ • Migrations    │
-│ • UserRepo      │    │ • UserRepository │    │ • Transactions  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Handler    │────▶│   Service    │────▶│  Repository  │
+│              │     │              │     │              │
+│ • Validate   │     │ • Business   │     │ • Database   │
+│ • Response   │     │   Logic      │     │ • CRUD       │
+└──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-## 🔐 Authentication Domains
+### ไฟล์สำคัญ
 
-The system supports three distinct authentication domains:
-
-### 1. **Admin Authentication**
-- **Purpose**: Administrative users who manage the dashboard
-- **Endpoints**: `/api/v1/auth/*`
-- **Entity**: `internal/domain/auth/entity/admin.go`
-- **Handler**: `internal/interfaces/http/handlers/auth_handler.go`
-
-### 2. **User Authentication**
-- **Purpose**: Regular application users
-- **Endpoints**: `/api/v1/user/auth/*`
-- **Entity**: `internal/domain/user/entity/user.go`
-- **Handler**: `internal/interfaces/http/handlers/user_handler.go`
-
-### 3. **Device Authentication**
-- **Purpose**: IoT devices and API clients
-- **Endpoints**: `/api/v1/auth/device`
-- **Entity**: `internal/domain/device/entity/device.go`
-- **Handler**: `internal/interfaces/http/handlers/device_handler.go`
-
-## 🔄 Authentication Flow
-
-### Registration Process (Users Only)
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant H as UserHandler
-    participant S as UserService
-    participant R as UserRepository
-    participant DB as Database
-
-    C->>H: POST /api/v1/user/auth/register
-    H->>H: Validate input & password strength
-    H->>S: RegisterUser(input)
-    S->>R: GetByEmail(email)
-    R->>DB: SELECT * FROM users WHERE email = ?
-    DB-->>R: User not found
-    R-->>S: nil (user doesn't exist)
-    S->>S: Hash password with bcrypt
-    S->>R: Create(user)
-    R->>DB: INSERT INTO users
-    DB-->>R: Success
-    S->>S: Generate JWT tokens
-    S-->>H: LoginResponse with tokens
-    H-->>C: 201 Created with tokens
+```
+internal/
+├── domain/auth/
+│   ├── entity/         # Admin, Token entities
+│   └── repository/     # Repository interfaces
+├── application/
+│   └── services/
+│       ├── auth_service.go    # Admin auth
+│       └── user_service.go    # User auth
+└── interfaces/http/
+    ├── handlers/
+    │   ├── auth_handler.go    # Admin endpoints
+    │   └── user_handler.go    # User endpoints
+    └── middleware/
+        └── auth.go            # JWT validation
 ```
 
-### Login Process (All User Types)
+## 🔑 JWT Token Structure
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant H as Handler
-    participant S as Service
-    participant R as Repository
-    participant DB as Database
-
-    C->>H: POST /auth/login
-    H->>H: Validate input
-    H->>S: LoginAdmin/User(input)
-    S->>R: GetByEmail(email)
-    R->>DB: SELECT * FROM table WHERE email = ?
-    DB-->>R: User record
-    R-->>S: User entity
-    S->>S: Verify password with bcrypt
-    S->>S: Increment token version
-    S->>R: Update(user)
-    R->>DB: UPDATE table SET token_version = ?, last_login = ?
-    S->>S: Generate access token (30min)
-    S->>S: Generate refresh token (1 year)
-    S-->>H: LoginResponse
-    H-->>C: 200 OK with tokens
-```
-
-### Token Refresh Process
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant H as AuthHandler
-    participant S as AuthService
-    participant TR as TokenRepository
-    participant UR as UserRepository
-
-    C->>H: POST /auth/refresh
-    H->>S: RefreshToken(input)
-    S->>TR: GetByToken(refresh_token)
-    TR-->>S: RefreshToken entity
-    S->>S: Validate token (not expired/revoked)
-    S->>UR: GetByID(user_id)
-    UR-->>S: User entity
-    S->>S: Generate new access token
-    S-->>H: New LoginResponse
-    H-->>C: 200 OK with new token
-```
-
-## 🛡️ Security Implementation
-
-### Password Security
-
-**Location**: `utils/password.go`
-
-```go
-// Strong password requirements
-func IsStrongPassword(password string) (bool, string) {
-    // Minimum 12 characters (configurable via SECURITY_MIN_PASSWORD_LENGTH)
-    // At least one lowercase letter
-    // At least one uppercase letter  
-    // At least one digit
-    // At least one special character
-    // No common passwords
-    // No sequential characters
-}
-```
-
-**Configuration**:
-```env
-SECURITY_MIN_PASSWORD_LENGTH=12  # Configurable minimum length
-```
-
-### Token Security
-
-#### JWT Structure
+### Access Token (30 นาที)
 ```json
 {
   "user_id": 123,
   "user_type": "admin|user|device",
   "token_version": 5,
-  "token_type": "access",
   "exp": 1725801600,
   "iat": 1725799800
 }
 ```
 
-#### Token Versioning
-- Each user has a `token_version` field
-- Incremented on login, logout, password change
-- Invalid tokens are rejected if version doesn't match
-- Enables immediate revocation of all user sessions
+### Refresh Token (1 ปี)
+- เก็บใน database
+- สามารถ revoke ได้
+- ใช้ refresh access token
 
-**Implementation**:
-```go
-// In AuthMiddleware
-if tokenVersion != user.TokenVersion {
-    return errors.New("token has been revoked")
-}
-```
+## 🛡️ Security Features
 
-### Refresh Token Management
+### 1. Password Security
+- ความยาวขั้นต่ำ 12 ตัวอักษร (กำหนดได้)
+- ต้องมีตัวพิมพ์ใหญ่, เล็ก, ตัวเลข, อักขระพิเศษ
+- ไม่อนุญาต password ที่ใช้บ่อย
+- ไม่อนุญาตตัวอักษรเรียงกัน (abc, 123)
 
-**Entity**: `internal/domain/auth/entity/token.go`
-```go
-type RefreshToken struct {
-    ID        uint
-    Token     string    // JWT refresh token
-    UserID    uint      // Reference to user
-    UserType  string    // "admin", "user", "device"
-    ExpiresAt time.Time // 1 year from creation
-    IsRevoked bool      // Manual revocation
-}
-```
+### 2. Token Versioning
+- แต่ละ user มี `token_version`
+- เพิ่มค่าเมื่อ login/logout/เปลี่ยน password
+- Token เก่าจะใช้ไม่ได้ทันที
 
-**Features**:
-- Stored in database for revocation capability
-- One-time use (can be configured)
-- Automatic cleanup of expired tokens
-- User type isolation
-
-## 🚨 Rate Limiting
-
-**Implementation**: `internal/interfaces/http/middleware/auth.go`
-
-```go
-type IPLimiter struct {
-    limiter    *rate.Limiter
-    lastAccess time.Time
-}
-```
-
-**Configuration**:
+### 3. Rate Limiting
 ```env
 RATE_LIMIT_REQUESTS_PER_MINUTE=60
 RATE_LIMIT_PATHS=/api/v1/auth/login,/api/v1/user/auth/register
-RATE_LIMIT_CLEANUP_MINUTES=5
-RATE_LIMIT_INACTIVE_MINUTES=20
 ```
 
-**Features**:
-- IP-based limiting
-- Configurable paths
-- Automatic cleanup of inactive limiters
-- Memory-efficient with goroutine cleanup
+## 💻 Implementation Examples
 
-## 🔒 Middleware Stack
-
-### AuthMiddleware
-**Location**: `internal/interfaces/http/middleware/auth.go`
-
+### Login Flow
 ```go
-func AuthMiddleware() gin.HandlerFunc {
-    // 1. Extract Bearer token
-    // 2. Parse JWT and validate signature
-    // 3. Check token expiration
-    // 4. Verify user exists in database
-    // 5. Validate token version
-    // 6. Set user context for handlers
+// 1. Handler รับ request
+func (h *AuthHandler) Login(c *gin.Context) {
+    var input dto.LoginInput
+    c.ShouldBindJSON(&input)
+    
+    // 2. เรียก Service
+    response, err := h.authService.LoginAdmin(input)
+    
+    // 3. Return token
+    c.JSON(200, response)
+}
+
+// 2. Service จัดการ business logic
+func (s *AuthService) LoginAdmin(input dto.LoginInput) (*dto.LoginResponse, error) {
+    // ค้นหา admin
+    admin, err := s.adminRepo.GetByEmail(input.Email)
+    
+    // ตรวจสอบ password
+    bcrypt.CompareHashAndPassword(admin.Password, input.Password)
+    
+    // Update token version
+    admin.TokenVersion++
+    s.adminRepo.Update(admin)
+    
+    // Generate tokens
+    token := utils.GenerateToken(admin.ID, "admin", admin.TokenVersion)
+    refreshToken := s.CreateRefreshToken(admin.ID, "admin")
+    
+    return &dto.LoginResponse{token, refreshToken}
 }
 ```
 
-### Role-Based Middleware
-
+### Middleware Protection
 ```go
-// AdminRequired - ensures user_type = "admin"
-func AdminRequired() gin.HandlerFunc
-
-// UserRequired - ensures user_type = "user"  
-func UserRequired() gin.HandlerFunc
-
-// SelfOrAdminRequired - user can access own resource or admin can access any
-func SelfOrAdminRequired() gin.HandlerFunc
+func AuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // 1. ดึง token
+        token := c.GetHeader("Authorization")
+        
+        // 2. Parse และ validate
+        userID, userType, tokenVer := utils.ParseToken(token)
+        
+        // 3. ตรวจสอบ token version
+        user := getUserFromDB(userID)
+        if tokenVer != user.TokenVersion {
+            c.AbortWithStatusJSON(401, "Token revoked")
+            return
+        }
+        
+        // 4. Set context
+        c.Set("user_id", userID)
+        c.Set("user_type", userType)
+        c.Next()
+    }
+}
 ```
 
-## 📁 Layer Responsibilities
+### Role-Based Access
+```go
+// Admin only
+func AdminRequired() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        if c.GetString("user_type") != "admin" {
+            c.AbortWithStatusJSON(403, "Admin only")
+        }
+        c.Next()
+    }
+}
 
-### Domain Layer (`internal/domain/`)
+// User only
+func UserRequired() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        if c.GetString("user_type") != "user" {
+            c.AbortWithStatusJSON(403, "User only")
+        }
+        c.Next()
+    }
+}
+```
 
-**Entities**:
-- `auth/entity/admin.go` - Admin user representation
-- `user/entity/user.go` - Regular user representation
-- `device/entity/device.go` - IoT device representation
-- `auth/entity/token.go` - Refresh token representation
+## 🔄 Token Refresh
 
-**Repository Interfaces**:
-- `auth/repository/admin.go` - Admin data operations
-- `user/repository/user.go` - User data operations
-- `auth/repository/token.go` - Token data operations
+```go
+func RefreshToken(refreshToken string) (*LoginResponse, error) {
+    // 1. ค้นหา refresh token
+    token := tokenRepo.GetByToken(refreshToken)
+    
+    // 2. ตรวจสอบ expiry และ revoked
+    if token.IsRevoked || token.ExpiresAt.Before(time.Now()) {
+        return nil, errors.New("Invalid refresh token")
+    }
+    
+    // 3. Generate new access token
+    newToken := utils.GenerateToken(token.UserID, token.UserType)
+    
+    return &LoginResponse{Token: newToken}
+}
+```
 
-### Application Layer (`internal/application/`)
+## 📝 Database Schema
 
-**Services (Use Cases)**:
-- `services/auth_service.go` - Admin authentication logic
-- `services/user_service.go` - User management logic
-- `services/device_service.go` - Device management logic
+### Admins Table
+```sql
+CREATE TABLE admins (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    token_version INT DEFAULT 1,
+    last_login TIMESTAMP,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
 
-**DTOs**:
-- `dto/auth.go` - Authentication request/response objects
-- `dto/user.go` - User management DTOs
+### Users Table
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    token_version INT DEFAULT 1,
+    admin_id INT REFERENCES admins(id),
+    last_login TIMESTAMP,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
 
-### Infrastructure Layer (`internal/infrastructure/`)
+### Refresh Tokens Table
+```sql
+CREATE TABLE refresh_tokens (
+    id SERIAL PRIMARY KEY,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    user_id INT NOT NULL,
+    user_type VARCHAR(50) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    is_revoked BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP
+);
+```
 
-**Repository Implementations**:
-- `database/admin_repository.go` - GORM admin repository
-- `database/user_repository.go` - GORM user repository
-- `database/token_repository.go` - GORM token repository
+## 🚀 การใช้งาน
 
-### Interface Layer (`internal/interfaces/http/`)
+### 1. Admin Login
+```bash
+POST /api/v1/auth/login
+{
+  "email": "admin@example.com",
+  "password": "password"
+}
 
-**Handlers**:
-- `handlers/auth_handler.go` - Admin auth endpoints
-- `handlers/user_handler.go` - User auth endpoints
-- `handlers/device_handler.go` - Device auth endpoints
+Response:
+{
+  "token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "expires_at": "2024-01-01T12:00:00Z"
+}
+```
 
-**Middleware**:
-- `middleware/auth.go` - Authentication and authorization
-- `middleware/user.go` - User-specific middleware
+### 2. User Registration
+```bash
+POST /api/v1/user/auth/register
+{
+  "name": "John Doe",
+  "email": "john@example.com", 
+  "password": "SecurePass123!",
+  "confirm_password": "SecurePass123!"
+}
+```
 
-## 🔧 Configuration
+### 3. Protected Request
+```bash
+GET /api/v1/admin/users
+Authorization: Bearer eyJ...
+```
 
-### Environment Variables
+## ⚙️ Configuration
 
 ```env
-# JWT Configuration
-JWT_SECRET=your_strong_secret_key_here
+# JWT
+JWT_SECRET=your_secret_key_min_32_chars
 JWT_EXPIRY_MINUTES=30
 
 # Security
@@ -309,127 +270,28 @@ SECURITY_MIN_PASSWORD_LENGTH=12
 
 # Rate Limiting
 RATE_LIMIT_REQUESTS_PER_MINUTE=60
-RATE_LIMIT_PATHS=/api/v1/auth/login,/api/v1/user/auth/register
-RATE_LIMIT_CLEANUP_MINUTES=5
-RATE_LIMIT_INACTIVE_MINUTES=20
+RATE_LIMIT_PATHS=/api/v1/auth/login
 
-# Database
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_NAME=dashboard
+# Development
+ENVIRONMENT=development
+AUTO_SEED=true
 ```
 
-### Dependency Injection
+## 🔍 Troubleshooting
 
-**Container**: `internal/interfaces/http/container.go`
+### Token ถูก revoke
+- ตรวจสอบ token_version ใน database
+- User อาจ logout หรือเปลี่ยน password
 
-```go
-type Container struct {
-    // Services
-    authService    *services.AuthService
-    userService    *services.UserApplicationService
-    deviceService  *services.DeviceApplicationService
-    
-    // Handlers
-    AuthHandler    *handlers.AuthHandler
-    UserHandler    *handlers.UserHandler
-    DeviceHandler  *handlers.DeviceHandler
-}
-```
+### Rate limit exceeded
+- รอ 1 นาทีแล้วลองใหม่
+- ตรวจสอบ IP ใน rate limiter
 
-## 🧪 Testing Strategy
+### Invalid token
+- ตรวจสอบ JWT_SECRET ตรงกัน
+- Token อาจหมดอายุ (30 นาที)
 
-### Unit Tests
-```bash
-# Domain layer tests
-go test ./internal/domain/auth/... -v
-go test ./internal/domain/user/... -v
+## 📚 Related Documentation
 
-# Application layer tests  
-go test ./internal/application/services/... -v
-
-# Infrastructure layer tests
-go test ./internal/infrastructure/database/... -v
-```
-
-### Integration Tests
-```bash
-# HTTP handler tests
-go test ./internal/interfaces/http/handlers/... -v
-
-# End-to-end API tests
-go test ./tests/auth_test.go -v
-```
-
-### Test Database Setup
-```go
-// Use separate test database
-func setupTestDB() *gorm.DB {
-    db := setupInMemoryDB() // SQLite in-memory
-    db.AutoMigrate(&entity.Admin{}, &entity.User{}, &entity.RefreshToken{})
-    return db
-}
-```
-
-## 🚀 Performance Considerations
-
-### Database Optimization
-- Connection pooling configured in `db/db.go`
-- Proper indexing on email fields
-- Token cleanup jobs for expired refresh tokens
-
-### Memory Management
-- IP limiter cleanup goroutine
-- Connection pool limits
-- Graceful shutdown handling
-
-### Security Best Practices
-- Environment-based secrets
-- Secure password hashing (bcrypt cost 12+)
-- Token expiration enforcement
-- SQL injection protection via GORM
-
-## 📊 Monitoring & Observability
-
-### Metrics Available
-- Authentication success/failure rates
-- Token refresh frequency
-- Rate limiting violations
-- Database connection pool status
-
-### Logging
-- Structured logging with levels
-- Authentication events
-- Security violations
-- Performance metrics
-
-### Health Checks
-- Database connectivity
-- Redis cache status (if enabled)
-- Service dependencies
-
-## 🔄 Migration from Old Architecture
-
-The refactoring moved from a simple MVC pattern to Clean Architecture:
-
-**Before**:
-```
-controllers/auth.go -> direct database access
-models/admin.go -> mixed concerns
-services/token_service.go -> global functions
-```
-
-**After**:
-```
-internal/interfaces/http/handlers/auth_handler.go -> HTTP concern only
-internal/domain/auth/entity/admin.go -> pure domain entity
-internal/application/services/auth_service.go -> use case orchestration
-internal/infrastructure/database/admin_repository.go -> data access only
-```
-
-**Benefits**:
-- ✅ Testable in isolation
-- ✅ Clear dependency direction  
-- ✅ Business logic separated from infrastructure
-- ✅ Easy to add new authentication methods
-- ✅ Ready for microservices split
+- [API Documentation](./API.md) - API endpoints reference
+- [Development Guide](./DEVELOPMENT.md) - Development setup
