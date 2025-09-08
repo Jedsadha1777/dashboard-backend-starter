@@ -3,6 +3,8 @@ package handlers
 import (
 	"dashboard-starter/internal/application/dto"
 	"dashboard-starter/internal/application/services"
+	"dashboard-starter/internal/domain/shared/errors"
+	"dashboard-starter/internal/interfaces/http/middleware"
 	"net/http"
 	"strconv"
 
@@ -23,19 +25,15 @@ func (h *DeviceHandler) AuthenticateDevice(c *gin.Context) {
 	var input dto.DeviceAuthInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	response, err := h.deviceService.AuthenticateDevice(input)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.InvalidCredentials())
 		return
 	}
 
@@ -48,10 +46,7 @@ func (h *DeviceHandler) AuthenticateDevice(c *gin.Context) {
 func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
@@ -61,23 +56,19 @@ func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	device, apiKey, err := h.deviceService.RegisterDevice(input.DeviceID, input.Name)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
 		if err.Error() == "device ID already exists" {
-			statusCode = http.StatusConflict
+			middleware.HandleError(c, errors.ErrConflict)
+		} else {
+			middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		}
-		c.JSON(statusCode, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
 		return
 	}
 
@@ -108,10 +99,7 @@ func (h *DeviceHandler) ListDevices(c *gin.Context) {
 
 	devices, total, err := h.deviceService.ListDevices(page, limit, search)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Error:   "Failed to retrieve devices: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.DatabaseError(err))
 		return
 	}
 
@@ -133,19 +121,13 @@ func (h *DeviceHandler) GetDevice(c *gin.Context) {
 	id := c.Param("id")
 	deviceID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid device ID",
-		})
+		middleware.HandleError(c, errors.ErrBadRequest)
 		return
 	}
 
 	device, err := h.deviceService.GetDevice(uint(deviceID))
 	if err != nil {
-		c.JSON(http.StatusNotFound, Response{
-			Success: false,
-			Error:   "Device not found",
-		})
+		middleware.HandleError(c, errors.ErrNotFound)
 		return
 	}
 
@@ -159,19 +141,13 @@ func (h *DeviceHandler) ResetAPIKey(c *gin.Context) {
 	id := c.Param("id")
 	deviceID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid device ID",
-		})
+		middleware.HandleError(c, errors.ErrBadRequest)
 		return
 	}
 
 	device, newAPIKey, err := h.deviceService.ResetDeviceAPIKey(uint(deviceID))
 	if err != nil {
-		c.JSON(http.StatusNotFound, Response{
-			Success: false,
-			Error:   "Device not found",
-		})
+		middleware.HandleError(c, errors.ErrNotFound)
 		return
 	}
 

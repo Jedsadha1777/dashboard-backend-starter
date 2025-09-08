@@ -3,6 +3,8 @@ package handlers
 import (
 	"dashboard-starter/internal/application/dto"
 	"dashboard-starter/internal/application/services"
+	"dashboard-starter/internal/domain/shared/errors"
+	"dashboard-starter/internal/interfaces/http/middleware"
 	"dashboard-starter/utils"
 	"net/http"
 	"strconv"
@@ -23,36 +25,28 @@ func NewArticleHandler(articleService *services.ArticleApplicationService) *Arti
 func (h *ArticleHandler) CreateArticle(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	var input dto.ArticleInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	article, err := h.articleService.CreateArticle(input, adminID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Error:   "Failed to create article: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		return
 	}
 
@@ -77,10 +71,7 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 
 	articles, total, err := h.articleService.ListArticles(page, limit, search, status)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Error:   "Failed to retrieve articles: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.DatabaseError(err))
 		return
 	}
 
@@ -102,19 +93,13 @@ func (h *ArticleHandler) GetArticle(c *gin.Context) {
 	id := c.Param("id")
 	articleID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid article ID",
-		})
+		middleware.HandleError(c, errors.ErrBadRequest)
 		return
 	}
 
 	article, err := h.articleService.GetArticle(uint(articleID))
 	if err != nil {
-		c.JSON(http.StatusNotFound, Response{
-			Success: false,
-			Error:   "Article not found",
-		})
+		middleware.HandleError(c, errors.ErrNotFound)
 		return
 	}
 
@@ -127,50 +112,39 @@ func (h *ArticleHandler) GetArticle(c *gin.Context) {
 func (h *ArticleHandler) UpdateArticle(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	id := c.Param("id")
 	articleID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid article ID",
-		})
+		middleware.HandleError(c, errors.ErrBadRequest)
 		return
 	}
 
 	var input dto.ArticleInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	article, err := h.articleService.UpdateArticle(uint(articleID), input, adminID.(uint))
 	if err != nil {
-		statusCode := http.StatusInternalServerError
 		if err.Error() == "permission denied" {
-			statusCode = http.StatusForbidden
+			middleware.HandleError(c, errors.ErrForbidden)
+		} else {
+			middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		}
-		c.JSON(statusCode, Response{
-			Success: false,
-			Error:   "Failed to update article: " + err.Error(),
-		})
 		return
 	}
 
@@ -183,32 +157,23 @@ func (h *ArticleHandler) UpdateArticle(c *gin.Context) {
 func (h *ArticleHandler) DeleteArticle(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	id := c.Param("id")
 	articleID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid article ID",
-		})
+		middleware.HandleError(c, errors.ErrBadRequest)
 		return
 	}
 
 	if err := h.articleService.DeleteArticle(uint(articleID), adminID.(uint)); err != nil {
-		statusCode := http.StatusInternalServerError
 		if err.Error() == "permission denied" {
-			statusCode = http.StatusForbidden
+			middleware.HandleError(c, errors.ErrForbidden)
+		} else {
+			middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		}
-		c.JSON(statusCode, Response{
-			Success: false,
-			Error:   "Failed to delete article: " + err.Error(),
-		})
 		return
 	}
 
@@ -221,33 +186,24 @@ func (h *ArticleHandler) DeleteArticle(c *gin.Context) {
 func (h *ArticleHandler) PublishArticle(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	id := c.Param("id")
 	articleID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid article ID",
-		})
+		middleware.HandleError(c, errors.ErrBadRequest)
 		return
 	}
 
 	article, err := h.articleService.PublishArticle(uint(articleID), adminID.(uint))
 	if err != nil {
-		statusCode := http.StatusInternalServerError
 		if err.Error() == "permission denied" {
-			statusCode = http.StatusForbidden
+			middleware.HandleError(c, errors.ErrForbidden)
+		} else {
+			middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		}
-		c.JSON(statusCode, Response{
-			Success: false,
-			Error:   "Failed to publish article: " + err.Error(),
-		})
 		return
 	}
 

@@ -2,6 +2,7 @@ package routes
 
 import (
 	"dashboard-starter/config"
+	"dashboard-starter/internal/infrastructure/logger"
 	"dashboard-starter/internal/interfaces/http"
 	"dashboard-starter/internal/interfaces/http/middleware"
 	"log"
@@ -16,14 +17,38 @@ import (
 )
 
 func SetupRouter() *gin.Engine {
-	r := gin.Default()
+	// Use gin.New() instead of gin.Default() to add custom middleware
+	r := gin.New()
+
+	// Initialize logger for middleware
+	zapLogger, _ := logger.NewZapLogger(config.Config.Environment)
+	middleware.InitRecoveryLogger(zapLogger)
+
+	// Security middleware (apply first)
+	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.RequestSizeLimitMiddleware(config.Config.App.MaxRequestSize))
+
+	// Request tracking and logging
+	r.Use(middleware.RequestIDMiddleware())                  // Add request ID first
+	r.Use(middleware.CustomRecovery())                       // Custom panic recovery
+	r.Use(middleware.StructuredLoggingMiddleware(zapLogger)) // Structured logging
+	r.Use(middleware.ErrorHandlerMiddleware())               // Error handling
+	r.Use(middleware.CORSMiddleware())                       // CORS
+	r.Use(middleware.RateLimitMiddleware())                  // Rate limiting
+
+	// Only enable Gin logger in development
+	if config.Config.Environment != "production" {
+		r.Use(gin.Logger())
+	}
 
 	// Initialize dependency injection container
 	container := http.NewContainer()
 
 	// Metrics
-	r.Use(metrics.PrometheusMiddleware())
-	r.GET("/metrics", metrics.Handler())
+	if config.Config.App.EnableMetrics {
+		r.Use(metrics.PrometheusMiddleware())
+		r.GET("/metrics", metrics.Handler())
+	}
 
 	// ตั้งค่า trusted proxies
 	trustedProxies := config.Config.Server.TrustedProxies
@@ -36,11 +61,13 @@ func SetupRouter() *gin.Engine {
 	}
 
 	// Apply global middlewares
-	r.Use(middleware.CORSMiddleware())
-	r.Use(middleware.RateLimitMiddleware())
+	r.Use(middleware.CORSMiddleware())      // CORS
+	r.Use(middleware.RateLimitMiddleware()) // Rate limiting
 
 	// Swagger documentation
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	if config.Config.App.EnableSwagger {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {

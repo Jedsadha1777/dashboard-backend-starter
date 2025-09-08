@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
@@ -23,6 +24,16 @@ type Configuration struct {
 	RateLimit   RateLimitConfig
 	Security    SecurityConfig
 	Environment string
+	App         AppConfig
+}
+
+// AppConfig contains application settings
+type AppConfig struct {
+	MaxRequestSize    int64 // Max request body size in bytes
+	MaxFileUploadSize int64 // Max file upload size in bytes
+	EnableSwagger     bool  // Enable Swagger docs
+	EnableMetrics     bool  // Enable Prometheus metrics
+	TrustedProxies    []string
 }
 
 // DatabaseConfig contains database related configuration
@@ -152,6 +163,20 @@ func Init() error {
 	// Environment setting
 	Config.Environment = getEnv("ENVIRONMENT", "production")
 
+	// App configuration
+	Config.App = AppConfig{
+		MaxRequestSize:    int64(getEnvAsInt("MAX_REQUEST_SIZE", 10*1024*1024)),     // 10MB default
+		MaxFileUploadSize: int64(getEnvAsInt("MAX_FILE_UPLOAD_SIZE", 50*1024*1024)), // 50MB default
+		EnableSwagger:     getEnvAsBool("ENABLE_SWAGGER", Config.Environment != "production"),
+		EnableMetrics:     getEnvAsBool("ENABLE_METRICS", true),
+		TrustedProxies:    trustedProxies,
+	}
+
+	// Set Gin mode based on environment
+	if Config.Environment == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	return nil
 }
 
@@ -192,6 +217,16 @@ func getEnvAsInt(key string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+// getEnvAsBool retrieves environment variable as boolean with fallback
+func getEnvAsBool(key string, fallback bool) bool {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return fallback
+	}
+
+	return valueStr == "true" || valueStr == "1" || valueStr == "yes"
 }
 
 // GetDSN returns database connection string

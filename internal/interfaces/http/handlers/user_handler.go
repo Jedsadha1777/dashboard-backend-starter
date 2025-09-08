@@ -3,6 +3,8 @@ package handlers
 import (
 	"dashboard-starter/internal/application/dto"
 	"dashboard-starter/internal/application/services"
+	"dashboard-starter/internal/domain/shared/errors"
+	"dashboard-starter/internal/interfaces/http/middleware"
 	"dashboard-starter/utils"
 	"net/http"
 	"strconv"
@@ -25,31 +27,26 @@ func (h *UserHandler) Register(c *gin.Context) {
 	var input dto.UserRegistrationInput
 
 	if err := c.ShouldBindBodyWith(&input, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	response, err := h.userService.RegisterUser(input)
 	if err != nil {
-		statusCode := http.StatusBadRequest
 		if err.Error() == "email already exists" {
-			statusCode = http.StatusConflict
+			middleware.HandleError(c, errors.EmailAlreadyExists(input.Email))
+		} else {
+			middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeBadRequest, 400))
 		}
-		c.JSON(statusCode, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
 		return
 	}
 
@@ -63,27 +60,22 @@ func (h *UserHandler) Login(c *gin.Context) {
 	var input dto.UserLoginInput
 
 	if err := c.ShouldBindBodyWith(&input, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	response, err := h.userService.LoginUser(input)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.InvalidCredentials())
 		return
 	}
 
@@ -96,19 +88,13 @@ func (h *UserHandler) Login(c *gin.Context) {
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "User ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	user, err := h.userService.GetUserProfile(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusNotFound, Response{
-			Success: false,
-			Error:   "User not found",
-		})
+		middleware.HandleError(c, errors.ErrNotFound)
 		return
 	}
 
@@ -121,36 +107,28 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "User ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	var input dto.UserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	user, err := h.userService.UpdateUserProfile(userID.(uint), input)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Error:   "Failed to update profile: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		return
 	}
 
@@ -163,39 +141,31 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 func (h *UserHandler) ChangePassword(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "User ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	var input dto.UserChangePasswordInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	if err := h.userService.ChangePassword(userID.(uint), input); err != nil {
-		statusCode := http.StatusBadRequest
 		if err.Error() == "current password is incorrect" {
-			statusCode = http.StatusUnauthorized
+			middleware.HandleError(c, errors.NewAppError(errors.ErrCodeUnauthorized, 401, "Current password is incorrect"))
+		} else {
+			middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeBadRequest, 400))
 		}
-		c.JSON(statusCode, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
 		return
 	}
 
@@ -219,10 +189,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 
 	users, total, err := h.userService.ListUsers(page, limit, search)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Error:   "Failed to retrieve users: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.DatabaseError(err))
 		return
 	}
 
@@ -243,40 +210,32 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	var input dto.UserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	user, tempPassword, err := h.userService.CreateUserByAdmin(input, adminID.(uint))
 	if err != nil {
-		statusCode := http.StatusInternalServerError
 		if err.Error() == "email already exists" {
-			statusCode = http.StatusConflict
+			middleware.HandleError(c, errors.EmailAlreadyExists(input.Email))
+		} else {
+			middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		}
-		c.JSON(statusCode, Response{
-			Success: false,
-			Error:   "Failed to create user: " + err.Error(),
-		})
 		return
 	}
 
@@ -294,19 +253,13 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	id := c.Param("id")
 	userID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid user ID",
-		})
+		middleware.HandleError(c, errors.ErrBadRequest)
 		return
 	}
 
 	user, err := h.userService.GetUserProfile(uint(userID))
 	if err != nil {
-		c.JSON(http.StatusNotFound, Response{
-			Success: false,
-			Error:   "User not found",
-		})
+		middleware.HandleError(c, errors.ErrNotFound)
 		return
 	}
 

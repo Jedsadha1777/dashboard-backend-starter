@@ -1,4 +1,13 @@
 .PHONY: run build test docs clean install-tools docker-up docker-down
+.PHONY: dev-migrate migrate-install migrate-up migrate-down migrate-drop migrate-create migrate-status seed
+.PHONY: test-coverage fmt lint build-prod dev-setup docker-logs
+
+# Load environment variables
+include .env
+export
+
+# Database URL for migrations
+DB_URL := postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 
 # Development commands
 run:
@@ -19,16 +28,37 @@ docs:
 	swag init
 	@echo "Swagger docs generated at docs/"
 
-# Database
+# Database - Development (GORM AutoMigrate)
+dev-migrate:
+	go run cmd/seed/main.go
+
+# Database - Production (golang-migrate)
+migrate-install:
+	@echo "Installing golang-migrate..."
+	@go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
 migrate-up:
-	go run cmd/migrate/main.go -direction=up
+	@echo "Running migrations..."
+	@migrate -database "$(DB_URL)" -path migrations up
 
 migrate-down:
-	go run cmd/migrate/main.go -direction=down -steps=1
+	@echo "Rolling back last migration..."
+	@migrate -database "$(DB_URL)" -path migrations down 1
+
+migrate-drop:
+	@echo "Dropping all migrations..."
+	@migrate -database "$(DB_URL)" -path migrations drop -f
 
 migrate-create:
 	@read -p "Enter migration name: " name; \
 	migrate create -ext sql -dir migrations -seq $$name
+
+migrate-status:
+	@echo "Current migration version:"
+	@migrate -database "$(DB_URL)" -path migrations version
+
+seed:
+	go run cmd/seed/main.go
 
 # Development tools
 install-tools:

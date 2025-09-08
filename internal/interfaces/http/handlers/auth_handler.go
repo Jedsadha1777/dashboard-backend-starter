@@ -3,6 +3,8 @@ package handlers
 import (
 	"dashboard-starter/internal/application/dto"
 	"dashboard-starter/internal/application/services"
+	"dashboard-starter/internal/domain/shared/errors"
+	"dashboard-starter/internal/interfaces/http/middleware"
 	"dashboard-starter/utils"
 	"net/http"
 
@@ -34,27 +36,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var input dto.LoginInput
 
 	if err := c.ShouldBindBodyWith(&input, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	if err := utils.ValidateStruct(input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"validation": err.Error(),
+		}))
 		return
 	}
 
 	response, err := h.authService.LoginAdmin(input)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.InvalidCredentials())
 		return
 	}
 
@@ -67,18 +64,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	if err := h.authService.LogoutAdmin(adminID.(uint)); err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Error:   "Logout failed: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.WrapError(err, errors.ErrCodeInternal, 500))
 		return
 	}
 
@@ -92,19 +83,15 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var input dto.RefreshTokenInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Error:   "Invalid input: " + err.Error(),
-		})
+		middleware.HandleError(c, errors.ValidationError(map[string]string{
+			"input": err.Error(),
+		}))
 		return
 	}
 
 	response, err := h.authService.RefreshToken(input)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   err.Error(),
-		})
+		middleware.HandleError(c, errors.TokenExpired())
 		return
 	}
 
@@ -117,19 +104,14 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	adminID, exists := c.Get("admin_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, Response{
-			Success: false,
-			Error:   "Admin ID not found",
-		})
+		middleware.HandleError(c, errors.ErrUnauthorized)
 		return
 	}
 
 	admin, err := h.authService.GetAdminProfile(adminID.(uint))
 	if err != nil {
-		c.JSON(http.StatusNotFound, Response{
-			Success: false,
-			Error:   "Admin not found",
-		})
+		middleware.HandleError(c, errors.ErrNotFound)
+
 		return
 	}
 

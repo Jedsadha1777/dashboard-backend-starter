@@ -17,6 +17,8 @@ import (
 
 	"dashboard-starter/internal/infrastructure/cache"
 	"dashboard-starter/internal/infrastructure/email"
+
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
@@ -55,6 +57,11 @@ func main() {
 	if err := config.Init(); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 
+	}
+
+	// Set Gin mode based on environment
+	if config.Config.Environment == "production" {
+		gin.SetMode(gin.ReleaseMode)
 	}
 
 	// Initialize Redis cache (optional)
