@@ -66,16 +66,6 @@ install-tools:
 	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	go install github.com/air-verse/air@latest
 
-# Docker commands
-docker-up:
-	docker-compose up -d
-
-docker-down:
-	docker-compose down
-
-docker-logs:
-	docker-compose logs -f
-
 # Cleanup
 clean:
 	rm -rf bin/
@@ -98,3 +88,45 @@ dev-setup: install-tools
 	cp .env.example .env
 	@echo "Please edit .env file with your configuration"
 	@echo "Then run: make docker-up && make run"
+
+
+# Docker commands
+docker-build:
+	docker build -t dashboard-api:latest .
+
+docker-up:
+	docker-compose up -d
+
+docker-down:
+	docker-compose down
+
+docker-logs:
+	docker-compose logs -f
+
+docker-restart:
+	docker-compose restart api
+
+docker-clean:
+	docker-compose down -v
+	docker system prune -f
+
+# Production deployment
+deploy-prod:
+	docker-compose --profile production up -d
+
+# Development with monitoring
+dev-with-monitoring:
+	docker-compose --profile monitoring up -d
+
+# Database backup
+backup-db:
+	@mkdir -p backups
+	docker-compose exec postgres pg_dump -U postgres dashboard | gzip > backups/backup_$(shell date +%Y%m%d_%H%M%S).sql.gz
+	@echo "✅ Backup completed"
+
+# Health check
+health-check:
+	@curl -f http://localhost:3000/health || exit 1
+	@echo "✅ API is healthy"
+
+.PHONY: docker-build docker-up docker-down docker-logs docker-restart docker-clean deploy-prod dev-with-monitoring backup-db health-check

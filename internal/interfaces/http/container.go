@@ -5,6 +5,8 @@ import (
 	"dashboard-starter/internal/application/services"
 	"dashboard-starter/internal/infrastructure"
 	"dashboard-starter/internal/interfaces/http/handlers"
+	"dashboard-starter/utils"
+	"time"
 )
 
 type Container struct {
@@ -21,6 +23,9 @@ type Container struct {
 	UserHandler    *handlers.UserHandler
 	DeviceHandler  *handlers.DeviceHandler
 	ArticleHandler *handlers.ArticleHandler
+
+	// Circuit breakers
+	dbCircuitBreaker *utils.CircuitBreaker
 }
 
 func NewContainer() *Container {
@@ -39,15 +44,19 @@ func NewContainer() *Container {
 	deviceHandler := handlers.NewDeviceHandler(deviceService)
 	articleHandler := handlers.NewArticleHandler(articleService)
 
+	// Initialize circuit breakers
+	dbCircuitBreaker := utils.NewCircuitBreaker("database", 5, 30*time.Second)
+
 	return &Container{
-		infraFactory:   infraFactory,
-		authService:    authService,
-		userService:    userService,
-		deviceService:  deviceService,
-		articleService: articleService,
-		AuthHandler:    authHandler,
-		UserHandler:    userHandler,
-		DeviceHandler:  deviceHandler,
-		ArticleHandler: articleHandler,
+		infraFactory:     infraFactory,
+		authService:      authService,
+		userService:      userService,
+		deviceService:    deviceService,
+		articleService:   articleService,
+		AuthHandler:      authHandler,
+		UserHandler:      userHandler,
+		DeviceHandler:    deviceHandler,
+		ArticleHandler:   articleHandler,
+		dbCircuitBreaker: dbCircuitBreaker,
 	}
 }

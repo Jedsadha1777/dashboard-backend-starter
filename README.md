@@ -1,63 +1,45 @@
-# Go Dashboard Backend Starter - Clean Architecture
+# Go Dashboard Backend - Clean Architecture
 
-โปรเจกต์ backend สำหรับ Admin Dashboard ที่ใช้ Clean Architecture และ Domain-Driven Design
-
-## 🏗️ Architecture Overview
-
-โปรเจกต์นี้ใช้ **Clean Architecture** พร้อม **Domain-Driven Design** เพื่อความยืดหยุ่น ทดสอบง่าย และบำรุงรักษาได้
-
-### Layer Architecture
-```
-┌─────────────────────────────────────────────┐
-│          Interface Layer (HTTP)             │
-│         handlers / middleware               │
-├─────────────────────────────────────────────┤
-│         Application Layer                   │
-│      services / use cases / DTOs            │
-├─────────────────────────────────────────────┤
-│           Domain Layer                      │
-│      entities / repositories                │
-├─────────────────────────────────────────────┤
-│        Infrastructure Layer                 │
-│   database / cache / email / logger         │
-└─────────────────────────────────────────────┘
-```
-
-## ✨ คุณสมบัติหลัก
-
-- **Clean Architecture** - แยก business logic จาก infrastructure
-- **3 Authentication Domains** - Admin, User, Device
-- **JWT + Refresh Token** - พร้อม token versioning
-- **Strong Security** - Rate limiting, CORS, SQL injection protection
-- **PostgreSQL + GORM** - Repository pattern
-- **Redis Cache** - Optional caching layer
-- **Swagger Documentation** - Auto-generated API docs
-- **Prometheus Metrics** - Monitoring ready
-- **Hot Reload** - Development with Air
+Production-ready admin dashboard backend with JWT authentication, built using Clean Architecture and Domain-Driven Design.
 
 ## 🚀 Quick Start
 
-### Requirements
-- Go 1.20+ 
-- PostgreSQL 13+
-- Redis (optional)
+### Prerequisites
+- Docker & Docker Compose
+- Go 1.23+ (for local development)
+- PostgreSQL 15+ (if not using Docker)
 
-### Installation
+### Run with Docker (Recommended)
 
 ```bash
 # Clone repository
 git clone <repository-url>
-cd dashboard-starter
+cd dashboard-backend-starter
 
+# Start all services
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f api
+```
+
+The API will be available at:
+- API: http://localhost:3000
+- Swagger UI: http://localhost:3000/swagger/index.html
+- Health Check: http://localhost:3000/health
+
+### Run Locally
+
+```bash
 # Setup environment
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your database credentials
 
 # Install dependencies
 go mod tidy
-
-# Create database
-createdb dashboard
 
 # Run migrations and seed
 go run cmd/seed/main.go
@@ -68,87 +50,156 @@ go run main.go
 air
 ```
 
-Server starts at `http://localhost:8080`
-
-### Important URLs
-- **API Base**: `http://localhost:8080/api/v1`
-- **Swagger UI**: `http://localhost:8080/swagger/index.html`
-- **Health Check**: `http://localhost:8080/health`
-- **Metrics**: `http://localhost:8080/metrics`
-
 ## 📁 Project Structure
 
 ```
-dashboard-starter/
-├── cmd/seed/             # Database seeding command
-├── config/               # Configuration management
-├── db/                   # Database initialization
-├── docs/                 # Swagger documentation
-├── internal/             
-│   ├── domain/           # Business logic
-│   │   ├── auth/        
-│   │   ├── user/        
-│   │   ├── device/      
-│   │   └── article/     
-│   ├── application/      # Use cases & DTOs
-│   ├── infrastructure/   # External services
-│   └── interfaces/http/  # HTTP handlers
-├── pkg/                  # Public packages
-├── routes/               # Route definitions
-├── tests/                # Integration tests
-├── utils/                # Utility functions
-└── main.go              # Entry point
+dashboard-backend-starter/
+├── cmd/seed/                 # Database seeding
+├── config/                   # Configuration management
+├── db/                       # Database initialization
+├── internal/
+│   ├── domain/              # Business entities & rules
+│   │   ├── auth/           # Admin authentication
+│   │   ├── user/           # User management
+│   │   ├── device/         # Device/IoT management
+│   │   └── article/        # Content management
+│   ├── application/         # Use cases & services
+│   ├── infrastructure/      # External services (DB, cache, email)
+│   └── interfaces/http/     # HTTP handlers & middleware
+├── routes/                  # API route definitions
+├── utils/                   # Shared utilities
+├── docker-compose.yml       # Docker orchestration
+├── Dockerfile              # Container build
+└── main.go                 # Application entry point
 ```
+
+## 🔑 Default Credentials
+
+After running `docker-compose up`, a default admin account is created:
+
+```
+Email: admin@example.com
+Password: (check logs for generated password)
+```
+
+**Important:** Change the default password immediately after first login.
+
+## 🛠️ Development
+
+### Database Operations
+
+```bash
+# Run migrations
+make migrate-up
+
+# Rollback migration
+make migrate-down
+
+# Seed database
+make seed
+
+# Backup database
+docker-compose exec postgres pg_dump -U postgres dashboard > backup.sql
+```
+
+### Docker Commands
+
+```bash
+# Build and start
+make docker-up
+
+# Stop all services
+make docker-down
+
+# Rebuild API
+docker-compose build api
+
+# View logs
+make docker-logs
+
+# Clean everything
+make docker-clean
+```
+
+### Testing
+
+```bash
+# Run tests
+go test ./...
+
+# With coverage
+go test ./... -cover
+
+# Integration tests
+make test
+```
+
+## 📚 API Documentation
+
+Full API documentation is available at `/swagger` when the server is running.
+
+### Key Endpoints
+
+#### Authentication
+- `POST /api/v1/auth/login` - Admin login
+- `POST /api/v1/user/auth/register` - User registration
+- `POST /api/v1/user/auth/login` - User login
+
+#### Admin Operations
+- `GET /api/v1/admin/users` - List users
+- `POST /api/v1/admin/users` - Create user
+- `GET /api/v1/admin/devices` - List devices
+- `POST /api/v1/admin/articles` - Create article
 
 ## 📚 Documentation
 
-- **[API Documentation](./API.md)** - Complete API endpoints reference
-- **[Adding New Features Guide](./ADDING_FEATURES.md)** - How to Add New Features: A Step-by-Step Guide
-- **[Development Guide](./DEVELOPMENT.md)** - Development setup and guidelines
-- **[Authentication Guide](./UserAuth.md)** - Authentication implementation details
+- [API.md](./API.md) - Complete API endpoint reference
+- [ADDING_FEATURES.md](./ADDING_FEATURES.md) - Step-by-step guide to add new features
+- [DEVELOPMENT.md](./DEVELOPMENT.md) - Development setup and guidelines
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - Production deployment guide
 
-## 🧪 Testing
+## 🚢 Deployment
 
+### Production Deployment
+
+1. **Update environment variables**
 ```bash
-# Run all tests
-go test ./... -v
-
-# With coverage
-go test ./... -coverprofile=coverage.out
-go tool cover -html=coverage.out
-
-# Using Makefile
-make test
-make test-coverage
+# Edit .env for production
+ENVIRONMENT=production
+AUTO_SEED=false
+JWT_SECRET=<strong-secret-key>
 ```
 
-## 🔧 Configuration
+2. **Build and deploy**
+```bash
+# Build production image
+docker build -t dashboard-api:production .
 
-Key environment variables:
-
-```env
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=dashboard
-
-# Security
-JWT_SECRET=your_secret_key_min_32_chars
-SECURITY_MIN_PASSWORD_LENGTH=12
-
-# Development
-ENVIRONMENT=development
-AUTO_SEED=true
+# Deploy with Docker Compose
+docker-compose -f docker-compose.yml up -d
 ```
 
-See `.env.example` for complete configuration options.
+3. **Setup HTTPS (optional but recommended)**
+- Add Nginx reverse proxy
+- Configure SSL certificates
+- See [DEPLOYMENT.md](./DEPLOYMENT.md) for details
 
-## 🤝 Contributing
+### Health Monitoring
 
-1. Follow Clean Architecture principles
-2. Write tests for new features
-3. Update documentation
-4. Use conventional commits
+The application provides health check endpoints:
+- `/health` - Basic health status
+- `/health/ready` - Detailed readiness check
+- `/health/live` - Liveness probe
+
+## 🔒 Security Features
+
+- JWT authentication with refresh tokens
+- Token versioning for instant revocation
+- Password strength validation
+- Rate limiting on sensitive endpoints
+- SQL injection protection
+- Request size limits
+- Security headers (CORS, XSS, CSRF protection)
 
 ## 📄 License
 

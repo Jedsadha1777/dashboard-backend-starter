@@ -30,6 +30,7 @@ var (
 )
 
 func init() {
+	// Load config values
 	if config.Config.RateLimit.CleanupMinutes <= 0 {
 		cleanupInterval = 5 * time.Minute
 	} else {
@@ -41,46 +42,52 @@ func init() {
 	} else {
 		inactiveThreshold = time.Duration(config.Config.RateLimit.InactiveMinutes) * time.Minute
 	}
-	go cleanupIPLimiters()
+	// Start cleanup goroutine with panic recovery
+	go func() {
+		cleanupIPLimitersWithRecovery()
+	}()
 }
 
-func cleanupIPLimiters() {
+func cleanupIPLimitersWithRecovery() {
+
 	ticker := time.NewTicker(cleanupInterval)
 	defer ticker.Stop()
-
 	for range ticker.C {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("Error during IP limiter cleanup: %v", r)
-				}
-			}()
-
-			threshold := time.Now().Add(-1 * inactiveThreshold)
-
-			limitersMutex.Lock()
-			defer limitersMutex.Unlock()
-
-			beforeCleanup := len(ipLimiters)
-
-			var keysToRemove []string
-
-			for ip, limiter := range ipLimiters {
-				if limiter.lastAccess.Before(threshold) {
-					keysToRemove = append(keysToRemove, ip)
-				}
-			}
-
-			for _, ip := range keysToRemove {
-				delete(ipLimiters, ip)
-			}
-
-			afterCleanup := len(ipLimiters)
-			if beforeCleanup != afterCleanup {
-				log.Printf("IP rate limiter cleanup: removed %d inactive limiters, %d remaining", beforeCleanup-afterCleanup, afterCleanup)
-			}
-		}()
+		cleanupIPLimitersOnce()
 	}
+}
+
+func cleanupIPLimitersOnce() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in IP limiter cleanup: %v", r)
+		}
+	}()
+
+	limitersMutex.Lock()
+	defer limitersMutex.Unlock()
+
+	threshold := time.Now().Add(-1 * inactiveThreshold)
+
+	beforeCleanup := len(ipLimiters)
+
+	var keysToRemove []string
+
+	for ip, limiter := range ipLimiters {
+		if limiter.lastAccess.Before(threshold) {
+			keysToRemove = append(keysToRemove, ip)
+		}
+	}
+
+	for _, ip := range keysToRemove {
+		delete(ipLimiters, ip)
+	}
+
+	afterCleanup := len(ipLimiters)
+	if beforeCleanup != afterCleanup {
+		log.Printf("IP rate limiter cleanup: removed %d inactive limiters, %d remaining", beforeCleanup-afterCleanup, afterCleanup)
+	}
+
 }
 
 func getIPLimiter(ip string) *IPLimiter {

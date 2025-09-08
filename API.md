@@ -1,26 +1,22 @@
 # API Documentation
 
-Complete API endpoints reference for Dashboard Backend.
-
-## Base URL
-```
-http://localhost:8080/api/v1
-```
+Base URL: `http://localhost:3000/api/v1`
 
 ## Authentication
+
 All protected endpoints require Bearer token in Authorization header:
 ```
 Authorization: Bearer <token>
 ```
 
 ## Response Format
-All responses follow this format:
+
 ```json
 {
   "success": true,
   "data": {},
-  "meta": {},
-  "error": ""
+  "error": "",
+  "meta": {}
 }
 ```
 
@@ -29,40 +25,48 @@ All responses follow this format:
 ## 🔐 Admin Authentication
 
 ### Login
-- **POST** `/auth/login`
-- **Body**:
+**POST** `/auth/login`
 ```json
 {
   "email": "admin@example.com",
   "password": "password"
 }
 ```
-- **Response**: Token, refresh token, expiry
 
-### Logout
-- **POST** `/auth/logout`
-- **Auth**: Required (Admin)
-
-### Refresh Token
-- **POST** `/auth/refresh`
-- **Body**:
+**Response:**
 ```json
 {
-  "refresh_token": "..."
+  "success": true,
+  "data": {
+    "token": "eyJ...",
+    "refresh_token": "eyJ...",
+    "expires_at": "2024-01-01T12:00:00Z",
+    "user_id": 1,
+    "user_type": "admin"
+  }
 }
 ```
 
+### Refresh Token
+**POST** `/auth/refresh`
+```json
+{
+  "refresh_token": "eyJ..."
+}
+```
+
+### Logout
+**POST** `/auth/logout` (Protected)
+
 ### Get Profile
-- **GET** `/auth/profile`
-- **Auth**: Required (Admin)
+**GET** `/auth/profile` (Protected)
 
 ---
 
 ## 👤 User Authentication
 
 ### Register
-- **POST** `/user/auth/register`
-- **Body**:
+**POST** `/user/auth/register`
 ```json
 {
   "name": "John Doe",
@@ -73,8 +77,7 @@ All responses follow this format:
 ```
 
 ### Login
-- **POST** `/user/auth/login`
-- **Body**:
+**POST** `/user/auth/login`
 ```json
 {
   "email": "john@example.com",
@@ -82,18 +85,8 @@ All responses follow this format:
 }
 ```
 
-### Logout
-- **POST** `/user/auth/logout`
-- **Auth**: Required (User)
-
-### Get Profile
-- **GET** `/user/auth/profile`
-- **Auth**: Required (User)
-
 ### Change Password
-- **POST** `/user/auth/change-password`
-- **Auth**: Required (User)
-- **Body**:
+**POST** `/user/auth/change-password` (Protected)
 ```json
 {
   "current_password": "OldPass123!",
@@ -107,33 +100,29 @@ All responses follow this format:
 ## 👥 User Management (Admin Only)
 
 ### List Users
-- **GET** `/admin/users`
-- **Auth**: Required (Admin)
-- **Query Params**:
-  - `page` (default: 1)
-  - `limit` (default: 10, max: 100)
-  - `search` (search by name/email)
+**GET** `/admin/users`
+
+Query Parameters:
+- `page` (default: 1)
+- `limit` (default: 10, max: 100)
+- `search` - Search by name or email
 
 ### Create User
-- **POST** `/admin/users`
-- **Auth**: Required (Admin)
-- **Body**:
+**POST** `/admin/users`
 ```json
 {
   "name": "New User",
   "email": "newuser@example.com"
 }
 ```
-- **Response**: User data + temporary password
+
+**Response includes temporary password**
 
 ### Get User
-- **GET** `/admin/users/:id`
-- **Auth**: Required (Admin)
+**GET** `/admin/users/:id`
 
 ### Update User
-- **PUT** `/admin/users/:id`
-- **Auth**: Required (Admin)
-- **Body**:
+**PUT** `/admin/users/:id`
 ```json
 {
   "name": "Updated Name",
@@ -142,80 +131,52 @@ All responses follow this format:
 ```
 
 ### Delete User
-- **DELETE** `/admin/users/:id`
-- **Auth**: Required (Admin)
-
-### Reset Password
-- **POST** `/admin/users/:id/reset-password`
-- **Auth**: Required (Admin)
+**DELETE** `/admin/users/:id`
 
 ---
 
-## 📱 Device Management
-
-### Device Authentication
-- **POST** `/auth/device`
-- **Body**:
-```json
-{
-  "device_id": "DEVICE001",
-  "api_key": "device_api_key_here"
-}
-```
-
-### List Devices
-- **GET** `/admin/devices`
-- **Auth**: Required (Admin)
-- **Query Params**:
-  - `page` (default: 1)
-  - `limit` (default: 10)
-  - `search`
+## 📱 Device Management (Admin Only)
 
 ### Register Device
-- **POST** `/admin/devices`
-- **Auth**: Required (Admin)
-- **Body**:
+**POST** `/admin/devices`
 ```json
 {
   "device_id": "DEVICE001",
   "name": "Temperature Sensor"
 }
 ```
-- **Response**: Device data + API key
+
+**Response includes API key**
+
+### List Devices
+**GET** `/admin/devices`
+
+Query Parameters:
+- `page` (default: 1)
+- `limit` (default: 10)
+- `search`
 
 ### Get Device
-- **GET** `/admin/devices/:id`
-- **Auth**: Required (Admin)
-
-### Update Device
-- **PUT** `/admin/devices/:id`
-- **Auth**: Required (Admin)
-
-### Delete Device
-- **DELETE** `/admin/devices/:id`
-- **Auth**: Required (Admin)
+**GET** `/admin/devices/:id`
 
 ### Reset API Key
-- **POST** `/admin/devices/:id/reset-key`
-- **Auth**: Required (Admin)
+**POST** `/admin/devices/:id/reset-key`
+
+### Device Authentication
+**POST** `/auth/device`
+```json
+{
+  "device_id": "DEVICE001",
+  "api_key": "generated_api_key"
+}
+```
 
 ---
 
-## 📝 Article Management
-
-### List Articles
-- **GET** `/admin/articles`
-- **Auth**: Required (Admin)
-- **Query Params**:
-  - `page` (default: 1)
-  - `limit` (default: 10)
-  - `search`
-  - `status` (draft/published/archived)
+## 📝 Article Management (Admin Only)
 
 ### Create Article
-- **POST** `/admin/articles`
-- **Auth**: Required (Admin)
-- **Body**:
+**POST** `/admin/articles`
 ```json
 {
   "title": "Article Title",
@@ -226,34 +187,36 @@ All responses follow this format:
 }
 ```
 
+### List Articles
+**GET** `/admin/articles`
+
+Query Parameters:
+- `page` (default: 1)
+- `limit` (default: 10)
+- `search`
+- `status` (draft/published/archived)
+
 ### Get Article
-- **GET** `/admin/articles/:id`
-- **Auth**: Required (Admin)
+**GET** `/admin/articles/:id`
 
 ### Update Article
-- **PUT** `/admin/articles/:id`
-- **Auth**: Required (Admin)
+**PUT** `/admin/articles/:id`
 
 ### Delete Article
-- **DELETE** `/admin/articles/:id`
-- **Auth**: Required (Admin)
+**DELETE** `/admin/articles/:id`
 
 ### Publish Article
-- **POST** `/admin/articles/:id/publish`
-- **Auth**: Required (Admin)
+**POST** `/admin/articles/:id/publish`
 
 ---
 
 ## 🏠 User Dashboard
 
 ### Get Dashboard
-- **GET** `/user/dashboard`
-- **Auth**: Required (User)
+**GET** `/user/dashboard` (User Auth Required)
 
 ### Update Profile
-- **PUT** `/user/profile`
-- **Auth**: Required (User)
-- **Body**:
+**PUT** `/user/profile` (User Auth Required)
 ```json
 {
   "name": "Updated Name",
@@ -266,21 +229,39 @@ All responses follow this format:
 ## 📊 Public Endpoints
 
 ### Health Check
-- **GET** `/health`
-- **Response**:
+**GET** `/health`
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "database": "connected",
+  "uptime": 3600
 }
 ```
 
-### Metrics
-- **GET** `/metrics`
-- **Response**: Prometheus metrics format
+### Readiness Check
+**GET** `/health/ready`
+```json
+{
+  "status": "ready",
+  "checks": {
+    "database": {
+      "status": "healthy",
+      "pool": {
+        "open": 10,
+        "in_use": 2,
+        "idle": 8
+      }
+    },
+    "memory": {
+      "alloc_mb": 12,
+      "goroutines": 15
+    }
+  }
+}
+```
 
 ### Public Articles
-- **GET** `/public/articles`
-- **Response**: Published articles list
+**GET** `/public/articles`
 
 ---
 
@@ -291,22 +272,14 @@ All responses follow this format:
 | 400 | Bad Request - Invalid input |
 | 401 | Unauthorized - Authentication required |
 | 403 | Forbidden - Insufficient permissions |
-| 404 | Not Found - Resource not found |
+| 404 | Not Found |
 | 409 | Conflict - Resource already exists |
-| 429 | Too Many Requests - Rate limit exceeded |
+| 429 | Too Many Requests |
 | 500 | Internal Server Error |
 
 ## 📈 Rate Limiting
 
-Default rate limits:
 - Authentication endpoints: 5 requests/minute
 - Other endpoints: 60 requests/minute
 
 Rate limiting is per IP address.
-
-
-## 📚 Related Documentation
-
-- [Adding New Features Guide](./ADDING_FEATURES.md)** - How to Add New Features: A Step-by-Step Guide
-- [Development Guide](./DEVELOPMENT.md)** - Development setup and guidelines
-- [Authentication Guide](./UserAuth.md)** - Authentication implementation details

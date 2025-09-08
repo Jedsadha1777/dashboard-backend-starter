@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ENVIRONMENT: development
+      AUTO_SEED: "true"
+      SEED_TEST_DATA: "true"
+      ENABLE_SWAGGER: "true"
+      LOG_LEVEL: debug
+      GIN_MODE: debug
+    ports:
+      - "3000:3000"

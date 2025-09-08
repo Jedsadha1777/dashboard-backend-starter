@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+
+# Go
+vendor/
+*.test
+*.out
+coverage.*
+
+# Build
+bin/
+dist/
+tmp/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test
+tests/
+*_test.go
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Development
+.air.toml
+tmp-air/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Backup
+*.sql
+*.sql.gz
+backups/

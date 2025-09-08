@@ -4,6 +4,7 @@ import (
 	"dashboard-starter/config"
 	"dashboard-starter/internal/infrastructure/logger"
 	"dashboard-starter/internal/interfaces/http"
+	"dashboard-starter/internal/interfaces/http/handlers"
 	"dashboard-starter/internal/interfaces/http/middleware"
 	"log"
 
@@ -69,10 +70,17 @@ func SetupRouter() *gin.Engine {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
-	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
+	// Health check endpoints
+	healthHandler := handlers.NewHealthHandler("1.0.0")
+	health := r.Group("/health")
+	{
+		health.GET("", healthHandler.HealthSummary)
+		health.GET("/live", healthHandler.Liveness)
+		health.GET("/ready", healthHandler.Readiness)
+	}
+
+	// Legacy health endpoint
+	r.GET("/healthz", healthHandler.Liveness)
 
 	// API versioning
 	v1 := r.Group("/api/v1")

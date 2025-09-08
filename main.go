@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -148,19 +149,55 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Track background workers
+	var wg sync.WaitGroup
+	shutdownChan := make(chan struct{})
+
+	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
 
 	// Create context with timeout for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Shutdown the server
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+	// Signal background workers to stop
+	close(shutdownChan)
+
+	// Create a channel to signal when shutdown is complete
+	done := make(chan struct{})
+
+	go func() {
+		// Wait for all background workers
+		wg.Wait()
+
+		// Shutdown the server
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("Server forced to shutdown: %v", err)
+		}
+
+		// Close database connections
+		if sqlDB, err := db.DB.DB(); err == nil {
+			log.Println("Closing database connections...")
+			sqlDB.Close()
+		}
+
+		// Close Redis if exists
+		if redisCache != nil && redisCache.Client != nil {
+			log.Println("Closing Redis connection...")
+			redisCache.Client.Close()
+		}
+
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Println("Graceful shutdown completed")
+	case <-ctx.Done():
+		log.Println("Shutdown timeout exceeded, forcing exit")
 	}
 
 	log.Println("Server exited properly")

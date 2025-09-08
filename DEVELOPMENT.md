@@ -1,384 +1,350 @@
 # Development Guide
 
-Guidelines for developing and extending the Dashboard Backend.
-
-## 🛠️ Development Setup
+## Setup Development Environment
 
 ### Prerequisites
+- Go 1.23+
+- Docker & Docker Compose
+- PostgreSQL 15+ (or use Docker)
+- Redis (optional, or use Docker)
+- Air (for hot reload)
+
+### Initial Setup
+
 ```bash
-# Install Go
-brew install go  # macOS
-# or download from https://golang.org
+# Clone repository
+git clone <repository-url>
+cd dashboard-backend-starter
 
-# Install PostgreSQL
-brew install postgresql
-
-# Install Redis (optional)
-brew install redis
-
-# Install Air for hot reload
-go install github.com/air-verse/air@latest
+# Install Go dependencies
+go mod tidy
 
 # Install development tools
-make install-tools
-```
+go install github.com/air-verse/air@latest
+go install github.com/swaggo/swag/cmd/swag@latest
 
-### Environment Configuration
+# Setup environment
+cp .env.example .env
+# Edit .env with your local settings
 
-Create `.env` file for development:
-```env
-# Development Settings
-ENVIRONMENT=development
-AUTO_SEED=true
-SEED_TEST_DATA=true
-
-# Database
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=dashboard_dev
-DB_HOST=localhost
-DB_PORT=5432
-
-# Security (use strong keys in production)
-JWT_SECRET=dev_secret_key_change_in_production_min_32_chars
-
-# Server
-SERVER_PORT=8080
-
-# Enable debug logging
-LOG_LEVEL=debug
-```
-
-### Database Setup
-```bash
-# Create development database
-createdb dashboard_dev
+# Start dependencies with Docker
+docker-compose up -d postgres redis
 
 # Run migrations and seed
 go run cmd/seed/main.go
 
-# Or use Makefile
-make migrate-up
-```
-
-### Running the Application
-```bash
-# With hot reload (recommended)
+# Start with hot reload
 air
-
-# Standard run
-go run main.go
-
-# Build and run
-make build
-./bin/api
 ```
 
-## 🏗️ Architecture Guidelines
+---
 
-### Clean Architecture Principles
+## Architecture Overview
 
-1. **Dependency Rule**: Dependencies point inward
-   - Domain → Application → Infrastructure → Interface
+### Clean Architecture Layers
 
-2. **Layer Responsibilities**:
-   - **Domain**: Business entities and rules
-   - **Application**: Use cases and orchestration
-   - **Infrastructure**: External services (DB, cache, email)
-   - **Interface**: HTTP handlers and middleware
+```
+Interface Layer (HTTP) → Application Layer → Domain Layer → Infrastructure Layer
+```
+
+- **Interface**: HTTP handlers, middleware, request/response
+- **Application**: Business logic, use cases, services
+- **Domain**: Entities, business rules, repository interfaces
+- **Infrastructure**: Database, external services, implementations
 
 ### Adding New Features
 
 #### 1. Create Domain Entity
 ```go
-// internal/domain/feature/entity/feature.go
-package entity
-
-type Feature struct {
-    ID        uint      `json:"id" gorm:"primaryKey"`
-    Name      string    `json:"name"`
-    CreatedAt time.Time `json:"created_at"`
+// internal/domain/product/entity/product.go
+type Product struct {
+    ID    uint      `json:"id" gorm:"primaryKey"`
+    Name  string    `json:"name" gorm:"size:255;not null"`
+    Price float64   `json:"price" gorm:"type:decimal(10,2)"`
 }
 ```
 
 #### 2. Define Repository Interface
 ```go
-// internal/domain/feature/repository/feature.go
-package repository
-
-type FeatureRepository interface {
-    GetByID(id uint) (*entity.Feature, error)
-    Create(feature *entity.Feature) error
-    Update(feature *entity.Feature) error
+// internal/domain/product/repository/product.go
+type ProductRepository interface {
+    GetByID(id uint) (*entity.Product, error)
+    Create(product *entity.Product) error
+    Update(product *entity.Product) error
     Delete(id uint) error
 }
 ```
 
 #### 3. Implement Repository
 ```go
-// internal/infrastructure/database/feature_repository.go
-package database
-
-type featureRepository struct {
+// internal/infrastructure/database/product_repository.go
+type productRepository struct {
     db *gorm.DB
 }
 
-func NewFeatureRepository(db *gorm.DB) repository.FeatureRepository {
-    return &featureRepository{db: db}
+func NewProductRepository(db *gorm.DB) repository.ProductRepository {
+    return &productRepository{db: db}
 }
 ```
 
-#### 4. Create Application Service
+#### 4. Create Service
 ```go
-// internal/application/services/feature_service.go
-package services
-
-type FeatureApplicationService struct {
-    repo repository.FeatureRepository
+// internal/application/services/product_service.go
+type ProductService struct {
+    repo repository.ProductRepository
 }
 
-func NewFeatureApplicationService(repo repository.FeatureRepository) *FeatureApplicationService {
-    return &FeatureApplicationService{repo: repo}
+func (s *ProductService) CreateProduct(input dto.ProductInput) (*entity.Product, error) {
+    // Business logic here
 }
 ```
 
 #### 5. Add HTTP Handler
 ```go
-// internal/interfaces/http/handlers/feature_handler.go
-package handlers
-
-type FeatureHandler struct {
-    service *services.FeatureApplicationService
-}
-
-func NewFeatureHandler(service *services.FeatureApplicationService) *FeatureHandler {
-    return &FeatureHandler{service: service}
+// internal/interfaces/http/handlers/product_handler.go
+func (h *ProductHandler) CreateProduct(c *gin.Context) {
+    // Handle HTTP request/response
 }
 ```
 
-#### 6. Update Container
-```go
-// internal/interfaces/http/container.go
-// Add to NewContainer():
-featureRepo := database.NewFeatureRepository(db)
-featureService := services.NewFeatureApplicationService(featureRepo)
-featureHandler := handlers.NewFeatureHandler(featureService)
-```
-
-#### 7. Add Routes
+#### 6. Register Routes
 ```go
 // routes/routes.go
-features := admin.Group("/features")
+products := admin.Group("/products")
 {
-    features.GET("", container.FeatureHandler.List)
-    features.POST("", container.FeatureHandler.Create)
-    // ...
+    products.POST("", container.ProductHandler.CreateProduct)
+    products.GET("/:id", container.ProductHandler.GetProduct)
 }
 ```
 
-#### 8. Update Model Registry
+#### 7. Register Model for Migration
 ```go
 // db/model.go
 modelRegistry = []interface{}{
     // existing models...
-    &featureEntity.Feature{},
+    &productEntity.Product{},
 }
 ```
 
-## 🧪 Testing
+---
 
-### Unit Testing
-```go
-// internal/application/services/feature_service_test.go
-func TestFeatureService_Create(t *testing.T) {
-    // Arrange
-    mockRepo := mocks.NewMockFeatureRepository()
-    service := NewFeatureApplicationService(mockRepo)
-    
-    // Act
-    result, err := service.Create(input)
-    
-    // Assert
-    assert.NoError(t, err)
-    assert.NotNil(t, result)
-}
-```
+## Common Tasks
 
-### Integration Testing
-```go
-// tests/feature_test.go
-func TestFeatureAPI(t *testing.T) {
-    router := setupTestRouter()
-    
-    // Test Create
-    req := httptest.NewRequest("POST", "/api/v1/features", body)
-    w := httptest.NewRecorder()
-    router.ServeHTTP(w, req)
-    
-    assert.Equal(t, http.StatusCreated, w.Code)
-}
-```
-
-### Test Database
-```go
-func setupTestDB() *gorm.DB {
-    // Use SQLite for tests
-    db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-    db.AutoMigrate(&entity.Feature{})
-    return db
-}
-```
-
-## 🔍 Debugging
-
-### Enable Debug Logging
-```env
-LOG_LEVEL=debug
-```
-
-### Database Query Logging
-```go
-// db/db.go
-newLogger := logger.New(
-    log.New(log.Writer(), "\r\n", log.LstdFlags),
-    logger.Config{
-        LogLevel: logger.Info, // Change to logger.Info for query logs
-    },
-)
-```
-
-### Request/Response Logging
-```go
-// Add to middleware
-func LoggerMiddleware() gin.HandlerFunc {
-    return gin.Logger()
-}
-```
-
-## 📦 Dependencies Management
-
-### Adding Dependencies
-```bash
-go get github.com/package/name
-go mod tidy
-```
-
-### Updating Dependencies
-```bash
-go get -u ./...
-go mod tidy
-```
-
-### Vendor Dependencies
-```bash
-go mod vendor
-```
-
-## 🚀 Deployment Preparation
-
-### Build for Production
-```bash
-# Linux
-CGO_ENABLED=0 GOOS=linux go build -o bin/api main.go
-
-# With Makefile
-make build-prod
-```
-
-### Production Checklist
-- [ ] Set `ENVIRONMENT=production`
-- [ ] Set `AUTO_SEED=false`
-- [ ] Use strong `JWT_SECRET`
-- [ ] Configure proper database credentials
-- [ ] Set up SSL/TLS
-- [ ] Configure rate limiting
-- [ ] Set up monitoring (Prometheus)
-- [ ] Configure log aggregation
-- [ ] Set up backup strategy
-
-## 🔧 Makefile Commands
+### Database Operations
 
 ```bash
-make run           # Run application
-make build         # Build binary
-make test          # Run tests
-make test-coverage # Generate coverage report
-make docs          # Generate Swagger docs
-make migrate-up    # Run migrations
-make migrate-down  # Rollback migration
-make clean         # Clean build artifacts
-make fmt           # Format code
-make lint          # Run linter
+# Create new migration
+migrate create -ext sql -dir migrations -seq create_products_table
+
+# Run migrations
+make migrate-up
+
+# Rollback
+make migrate-down
+
+# Access database
+docker-compose exec postgres psql -U postgres -d dashboard
 ```
 
-## 📝 Code Style
+### Testing
+
+```bash
+# Run all tests
+go test ./...
+
+# Run specific package tests
+go test ./internal/application/services/...
+
+# With coverage
+go test -cover ./...
+
+# Generate coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+### Generate Swagger Documentation
+
+```bash
+# Generate/update swagger docs
+swag init
+
+# Format with descriptions
+swag init --parseDependency --parseInternal
+```
+
+### Working with Docker
+
+```bash
+# Build only API
+docker-compose build api
+
+# Run specific service
+docker-compose up postgres
+
+# Execute commands in container
+docker-compose exec api sh
+
+# View real-time logs
+docker-compose logs -f api
+
+# Clean rebuild
+docker-compose down -v
+docker-compose build --no-cache
+docker-compose up
+```
+
+---
+
+## Code Standards
+
+### Project Structure
+```
+internal/
+├── domain/           # Business logic (no external dependencies)
+│   └── {feature}/
+│       ├── entity/   # Business entities
+│       └── repository/ # Repository interfaces
+├── application/      # Use cases
+│   ├── dto/         # Data transfer objects
+│   └── services/    # Application services
+├── infrastructure/   # External services
+│   ├── database/    # Repository implementations
+│   ├── cache/       # Redis implementation
+│   └── email/       # Email service
+└── interfaces/      # External interfaces
+    └── http/        # HTTP layer
+        ├── handlers/  # HTTP handlers
+        └── middleware/ # HTTP middleware
+```
 
 ### Naming Conventions
 - Files: `snake_case.go`
 - Packages: lowercase
-- Interfaces: `PascalCase` with suffix (e.g., `UserRepository`)
-- Structs: `PascalCase`
-- Functions/Methods: `PascalCase` (exported) or `camelCase` (private)
-- Constants: `PascalCase` or `UPPER_SNAKE_CASE`
-
-### Comments
-```go
-// UserService handles user-related business logic
-type UserService struct {
-    // ...
-}
-
-// CreateUser creates a new user with the given input
-// Returns the created user and any error encountered
-func (s *UserService) CreateUser(input dto.UserInput) (*entity.User, error) {
-    // Validate input
-    // ...
-}
-```
+- Exported functions/types: `PascalCase`
+- Private functions/types: `camelCase`
 
 ### Error Handling
 ```go
-// Define errors
-var (
-    ErrUserNotFound = errors.New("user not found")
-    ErrEmailExists  = errors.New("email already exists")
-)
+// Domain errors
+var ErrProductNotFound = errors.New("product not found")
 
 // Return wrapped errors
 if err != nil {
-    return nil, fmt.Errorf("failed to create user: %w", err)
+    return nil, fmt.Errorf("failed to create product: %w", err)
+}
+
+// HTTP error response
+if err != nil {
+    c.JSON(http.StatusBadRequest, gin.H{
+        "success": false,
+        "error": err.Error(),
+    })
+    return
 }
 ```
 
-## 🐛 Common Issues
+### Validation
+```go
+// Use struct tags for validation
+type ProductInput struct {
+    Name  string  `json:"name" binding:"required" validate:"required,min=3,max=255"`
+    Price float64 `json:"price" binding:"required" validate:"required,min=0"`
+}
 
-### Port Already in Use
+// Validate in handler
+if err := c.ShouldBindJSON(&input); err != nil {
+    // Handle validation error
+}
+```
+
+---
+
+## Debugging
+
+### Enable Debug Logging
+```env
+LOG_LEVEL=debug
+GIN_MODE=debug
+```
+
+### Database Query Logging
+```go
+// In db/db.go, change LogLevel
+logger.Config{
+    LogLevel: logger.Info, // Shows all SQL queries
+}
+```
+
+### Check Running Services
 ```bash
-# Find process using port
-lsof -i :8080
-# Kill process
+# Check if services are healthy
+docker-compose ps
+
+# Check port usage
+lsof -i :3000
+
+# Check database connection
+docker-compose exec postgres pg_isready
+```
+
+### Common Issues
+
+#### Port Already in Use
+```bash
+# Find and kill process
+lsof -i :3000
 kill -9 <PID>
 ```
 
-### Database Connection Failed
-- Check PostgreSQL is running
-- Verify credentials in `.env`
-- Check database exists
+#### Database Connection Failed
+```bash
+# Check PostgreSQL is running
+docker-compose up -d postgres
 
-### Migration Failed
-- Check for syntax errors
-- Verify model definitions
-- Review foreign key constraints
+# Check credentials in .env
+echo $DB_PASSWORD
 
-### Hot Reload Not Working
-- Ensure Air is installed
-- Check `.air.toml` configuration
-- Verify file permissions
+# Test connection
+psql -h localhost -U postgres -d dashboard
+```
 
+#### Module Issues
+```bash
+# Clean module cache
+go clean -modcache
 
+# Re-download dependencies
+go mod download
 
-## 📚 Related Documentation
+# Tidy and verify
+go mod tidy
+go mod verify
+```
 
-- [API Documentation](./API.md)** - Complete API endpoints reference
-- [Adding New Features Guide](./ADDING_FEATURES.md)** - How to Add New Features: A Step-by-Step Guide
-- [Authentication Guide](./UserAuth.md)** - Authentication implementation details
+---
+
+## Git Workflow
+
+### Branch Strategy
+```bash
+main          # Production-ready code
+├── develop   # Integration branch
+└── feature/* # Feature branches
+```
+
+### Commit Messages
+```bash
+feat: Add product management
+fix: Resolve database connection issue
+docs: Update API documentation
+refactor: Simplify auth middleware
+test: Add user service tests
+```
+
+### Pre-commit Checklist
+- [ ] Tests pass (`go test ./...`)
+- [ ] Code formatted (`go fmt ./...`)
+- [ ] Swagger updated (`swag init`)
+- [ ] No linting errors (`golangci-lint run`)
+- [ ] Documentation updated

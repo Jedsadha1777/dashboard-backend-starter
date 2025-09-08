@@ -8,15 +8,26 @@ import (
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
-var recoveryLogger *logger.ZapLogger // เปลี่ยนชื่อจาก log เป็น recoveryLogger
+var recoveryLogger *logger.ZapLogger
 
 // InitRecoveryLogger initializes logger for recovery middleware
 func InitRecoveryLogger(l *logger.ZapLogger) {
-	recoveryLogger = l // เปลี่ยนจาก log เป็น recoveryLogger
+	recoveryLogger = l
 }
+
+var (
+	panicCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_panic_recovered_total",
+			Help: "Total number of recovered panics",
+		},
+		[]string{"path", "method"},
+	)
+)
 
 // CustomRecovery handles panics with proper logging
 func CustomRecovery() gin.HandlerFunc {
@@ -29,8 +40,11 @@ func CustomRecovery() gin.HandlerFunc {
 				// Get request ID
 				requestID := GetRequestID(c)
 
+				// Increment panic counter
+				panicCounter.WithLabelValues(c.Request.URL.Path, c.Request.Method).Inc()
+
 				// Log the panic
-				if recoveryLogger != nil { // เปลี่ยนจาก log เป็น recoveryLogger
+				if recoveryLogger != nil {
 					recoveryLogger.Error("Panic recovered",
 						zap.Any("error", err),
 						zap.String("request_id", requestID),
